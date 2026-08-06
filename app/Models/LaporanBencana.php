@@ -22,6 +22,7 @@ class LaporanBencana extends Model
         'latitude',
         'longitude',
         'alamat_detail',
+        'foto_laporan',
         'status',
     ];
 
