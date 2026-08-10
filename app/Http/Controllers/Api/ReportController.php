@@ -26,7 +26,17 @@ class ReportController extends Controller
             'location_name' => 'nullable|string',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:10240',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'korban_meninggal' => 'nullable|integer',
+            'korban_luka_berat' => 'nullable|integer',
+            'korban_luka_ringan' => 'nullable|integer',
+            'korban_hilang' => 'nullable|integer',
+            'jumlah_pengungsi' => 'nullable|integer',
+            'kerusakan_fisik' => 'nullable|string',
+            'tingkat_kerusakan' => 'nullable|string',
+            'kebutuhan_logistik' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -52,11 +62,18 @@ class ReportController extends Controller
         $userId = $request->user() ? $request->user()->id_user : 1;
 
         // Handle image upload if present
-        $imageUrl = null;
-        if ($request->hasFile('image')) {
+        $imageUrls = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('reports', 'public');
+                $imageUrls[] = url('storage/' . $path);
+            }
+        } elseif ($request->hasFile('image')) {
             $path = $request->file('image')->store('reports', 'public');
-            $imageUrl = url('storage/' . $path);
+            $imageUrls[] = url('storage/' . $path);
         }
+
+        $totalKorban = (int)($request->korban_meninggal ?? 0) + (int)($request->korban_luka_berat ?? 0) + (int)($request->korban_luka_ringan ?? 0) + (int)($request->korban_hilang ?? 0);
 
         $laporan = LaporanBencana::create([
             'id_user' => $userId,
@@ -65,11 +82,12 @@ class ReportController extends Controller
             'id_kelurahan' => $idKelurahan,
             'judul' => $request->title,
             'deskripsi' => $request->description,
-            'jumlah_korban' => 0,
+            'jumlah_korban' => $totalKorban,
             'latitude' => $request->latitude ?? 0.0,
             'longitude' => $request->longitude ?? 0.0,
             'alamat_detail' => $request->location_name ?? 'Lokasi Warga',
-            'foto_laporan' => $imageUrl,
+            'foto_laporan' => empty($imageUrls) ? null : $imageUrls,
+            'kebutuhan_logistik' => $request->kebutuhan_logistik,
             'status' => 'Pending',
         ]);
 
@@ -80,6 +98,31 @@ class ReportController extends Controller
             'status_baru' => 'Pending',
             'updated_by' => $userId,
         ]);
+
+        // Insert to app_korban if there is data
+        if ($totalKorban > 0 || (int)($request->jumlah_pengungsi ?? 0) > 0) {
+            \App\Models\Korban::create([
+                'id_laporan' => $laporan->id_laporan,
+                'id_kelurahan' => $idKelurahan,
+                'jumlah_meninggal' => $request->korban_meninggal ?? 0,
+                'jumlah_luka_berat' => $request->korban_luka_berat ?? 0,
+                'jumlah_luka_ringan' => $request->korban_luka_ringan ?? 0,
+                'jumlah_hilang' => $request->korban_hilang ?? 0,
+                'jumlah_mengungsi' => $request->jumlah_pengungsi ?? 0,
+            ]);
+        }
+
+        // Insert to app_dampak_kerusakan if there is physical damage
+        if ($request->kerusakan_fisik) {
+            \App\Models\DampakKerusakan::create([
+                'id_laporan' => $laporan->id_laporan,
+                'id_kelurahan' => $idKelurahan,
+                'dicatat_oleh' => $userId,
+                'jenis_kerusakan' => 'Infrastruktur / Bangunan',
+                'tingkat_kerusakan' => $request->tingkat_kerusakan ?? 'Tidak Diketahui',
+                'deskripsi' => $request->kerusakan_fisik,
+            ]);
+        }
 
         return response()->json([
             'success' => true,
@@ -111,14 +154,30 @@ class ReportController extends Controller
     /**
      * Get all active disaster reports for interactive map markers
      */
-    public function mapReports()
+    public function mapReports(Request $request)
     {
-        $reports = LaporanBencana::with(['bencana', 'penanganan'])
+        $kecamatanId = $request->query('kecamatan_id');
+        $year = $request->query('year');
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        $query = LaporanBencana::with(['bencana', 'penanganan'])
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->where('latitude', '!=', 0)
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->where('latitude', '!=', 0);
+
+        if ($kecamatanId) {
+            $query->where('id_kecamatan', $kecamatanId);
+        }
+
+        if ($startDate && $endDate) {
+            $query->whereDate('created_at', '>=', $startDate)
+                  ->whereDate('created_at', '<=', $endDate);
+        } elseif ($year) {
+            $query->whereYear('created_at', $year);
+        }
+
+        $reports = $query->orderBy('created_at', 'desc')->get();
 
         return response()->json([
             'success' => true,
@@ -177,7 +236,9 @@ class ReportController extends Controller
             'latitude' => (float) $laporan->latitude,
             'longitude' => (float) $laporan->longitude,
             'status' => $laporan->status ?? 'Pending',
-            'image_url' => $laporan->foto_laporan,
+            'image_url' => is_array($laporan->foto_laporan) && count($laporan->foto_laporan) > 0 ? $laporan->foto_laporan[0] : (is_string($laporan->foto_laporan) ? $laporan->foto_laporan : null),
+            'image_urls' => is_array($laporan->foto_laporan) ? $laporan->foto_laporan : (is_string($laporan->foto_laporan) && !empty($laporan->foto_laporan) ? [$laporan->foto_laporan] : []),
+            'kebutuhan_logistik' => $laporan->kebutuhan_logistik,
             'report_date' => $laporan->created_at ? $laporan->created_at->toIso8601String() : now()->toIso8601String(),
             'status_history' => $statusHistory,
         ];

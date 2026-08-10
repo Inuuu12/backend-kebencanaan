@@ -23,6 +23,7 @@ class LaporanBencana extends Model
         'longitude',
         'alamat_detail',
         'foto_laporan',
+        'kebutuhan_logistik',
         'status',
     ];
 
@@ -30,6 +31,7 @@ class LaporanBencana extends Model
         'jumlah_korban' => 'integer',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
+        'foto_laporan' => 'array',
     ];
 
     public function user(): BelongsTo

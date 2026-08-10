@@ -45,9 +45,10 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = method_exists($user, 'createToken') 
-            ? $user->createToken('auth_token')->plainTextToken 
-            : 'sigab_token_' . Str::random(60);
+        $token = 'sigab_token_' . Str::random(60);
+        
+        $user->remember_token = $token;
+        $user->save();
 
         return response()->json([
             'success' => true,
@@ -58,6 +59,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'nik' => '',
                 'phone' => $user->no_telp ?? '',
+                'role' => $user->role ?? 'admin',
                 'token' => $token,
             ]
         ]);
@@ -146,12 +148,20 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
-        $user = $request->user();
+        $token = $request->bearerToken();
+        if (!$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated (No token)'
+            ], 401);
+        }
+
+        $user = User::where('remember_token', $token)->first();
 
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthenticated'
+                'message' => 'Unauthenticated (Invalid token)'
             ], 401);
         }
 

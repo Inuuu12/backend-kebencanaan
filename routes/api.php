@@ -24,6 +24,10 @@ Route::get('/me', [AuthController::class, 'me']);
 Route::get('/weather', [HomeController::class, 'weather']);
 Route::get('/emergency-contacts', [HomeController::class, 'emergencyContacts']);
 
+// Dashboard
+use App\Http\Controllers\Api\DashboardController;
+Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+
 // Disaster Reports
 Route::post('/reports/submit', [ReportController::class, 'submit']);
 Route::get('/reports/my-history', [ReportController::class, 'myHistory']);
