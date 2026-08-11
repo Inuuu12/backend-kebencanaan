@@ -27,6 +27,15 @@ class ReportController extends Controller
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'id_kecamatan' => 'nullable|integer',
+            'id_kelurahan' => 'nullable|integer',
+            'victim_deaths' => 'nullable|integer|min:0',
+            'victim_injured' => 'nullable|integer|min:0',
+            'victim_missing' => 'nullable|integer|min:0',
+            'house_damage' => 'nullable|string',
+            'road_damage' => 'nullable|string',
+            'bridge_damage' => 'nullable|string',
+            'public_facility_damage' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -47,9 +56,15 @@ class ReportController extends Controller
             ]);
         }
 
-        $idKecamatan = Kecamatan::value('id_kecamatan') ?? 1;
-        $idKelurahan = Kelurahan::value('id_kelurahan') ?? 1;
+        $idKecamatan = $request->input('id_kecamatan') ?? Kecamatan::value('id_kecamatan') ?? 1;
+        $idKelurahan = $request->input('id_kelurahan') ?? Kelurahan::value('id_kelurahan') ?? 1;
         $userId = $request->user() ? $request->user()->id_user : 1;
+
+        // Calculate total victims
+        $victimDeaths = (int) $request->input('victim_deaths', 0);
+        $victimInjured = (int) $request->input('victim_injured', 0);
+        $victimMissing = (int) $request->input('victim_missing', 0);
+        $totalKorban = $victimDeaths + $victimInjured + $victimMissing;
 
         // Handle image upload if present
         $imageUrl = null;
@@ -65,13 +80,51 @@ class ReportController extends Controller
             'id_kelurahan' => $idKelurahan,
             'judul' => $request->title,
             'deskripsi' => $request->description,
-            'jumlah_korban' => 0,
+            'jumlah_korban' => $totalKorban,
             'latitude' => $request->latitude ?? 0.0,
             'longitude' => $request->longitude ?? 0.0,
             'alamat_detail' => $request->location_name ?? 'Lokasi Warga',
             'foto_laporan' => $imageUrl,
             'status' => 'Pending',
         ]);
+
+        // Save structured victim records to app_korban
+        if ($totalKorban > 0 || $request->has('victim_deaths')) {
+            \App\Models\Korban::create([
+                'id_laporan' => $laporan->id_laporan,
+                'id_kelurahan' => $idKelurahan,
+                'jumlah_meninggal' => $victimDeaths,
+                'jumlah_luka_berat' => $victimInjured,
+                'jumlah_luka_ringan' => 0,
+                'jumlah_mengungsi' => 0,
+                'jumlah_hilang' => $victimMissing,
+                'keterangan' => 'Laporan awal warga dari SIGAB Mobile',
+            ]);
+        }
+
+        // Save structured damage records to app_dampak_kerusakan
+        $damageFields = [
+            'Rumah' => $request->input('house_damage'),
+            'Jalan' => $request->input('road_damage'),
+            'Jembatan' => $request->input('bridge_damage'),
+            'Fasilitas Umum' => $request->input('public_facility_damage'),
+        ];
+
+        foreach ($damageFields as $jenis => $tingkat) {
+            if (!empty($tingkat) && $tingkat !== 'Tidak Ada') {
+                \App\Models\DampakKerusakan::create([
+                    'id_laporan' => $laporan->id_laporan,
+                    'id_kelurahan' => $idKelurahan,
+                    'dicatat_oleh' => $userId,
+                    'jenis_kerusakan' => $jenis,
+                    'tingkat_kerusakan' => $tingkat,
+                    'jumlah_unit' => 1,
+                    'estimasi_kerugian' => 0,
+                    'deskripsi' => "Dampak kerusakan $jenis kategori $tingkat",
+                    'foto_url' => $imageUrl,
+                ]);
+            }
+        }
 
         // Add initial handling history
         Penanganan::create([
