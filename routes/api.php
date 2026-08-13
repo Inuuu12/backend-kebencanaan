@@ -18,24 +18,26 @@ use App\Http\Controllers\Api\NotificationController;
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::get('/me', [AuthController::class, 'me']);
+
+// Authenticated Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/reports/submit', [ReportController::class, 'submit']);
+    Route::get('/reports/my-history', [ReportController::class, 'myHistory']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+});
 
 // Weather & Home Info
 Route::get('/weather', [HomeController::class, 'weather']);
 Route::get('/emergency-contacts', [HomeController::class, 'emergencyContacts']);
 
 // Disaster Reports
-Route::post('/reports/submit', [ReportController::class, 'submit']);
-Route::get('/reports/my-history', [ReportController::class, 'myHistory']);
 Route::get('/reports/map', [ReportController::class, 'mapReports']);
 Route::get('/reports/{id}', [ReportController::class, 'show']);
 
 // News Bulletins
 Route::get('/news', [NewsController::class, 'index']);
 Route::get('/news/{id}', [NewsController::class, 'show']);
-
-// Notifications
-Route::get('/notifications', [NotificationController::class, 'index']);
 
 // Master Data & Regional Boundaries
 Route::get('/bencana', [MasterDataController::class, 'bencana']);

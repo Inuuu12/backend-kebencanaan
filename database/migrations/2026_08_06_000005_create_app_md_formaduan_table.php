@@ -27,11 +27,6 @@ return new class extends Migration
         DB::table('app_md_formaduan')->insert([
             ['nama_bencana' => 'Laporan Bencana Alam', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Bencana Alam', 'created_at' => now(), 'updated_at' => now()],
             ['nama_bencana' => 'Laporan Bencana Non Alam', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Bencana Non Alam', 'created_at' => now(), 'updated_at' => now()],
-            ['nama_bencana' => 'Laporan Bantuan Sosial', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Bantuan Sosial', 'created_at' => now(), 'updated_at' => now()],
-            ['nama_bencana' => 'Laporan Layanan Publik', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Layanan Publik', 'created_at' => now(), 'updated_at' => now()],
-            ['nama_bencana' => 'Laporan Fasilitas Umum', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Fasilitas Umum', 'created_at' => now(), 'updated_at' => now()],
-            ['nama_bencana' => 'Laporan Keamanan dan Ketertiban', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Keamanan dan Ketertiban', 'created_at' => now(), 'updated_at' => now()],
-            ['nama_bencana' => 'Laporan Kesehatan', 'latitude' => 0, 'longitude' => 0, 'foto_laporan' => '', 'jumlah_korban' => 0, 'status' => 'MENUNGGU', 'deskripsi' => 'Laporan Kesehatan', 'created_at' => now(), 'updated_at' => now()],
         ]);
     }
 
