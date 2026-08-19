@@ -20,23 +20,23 @@ class ReportController extends Controller
     public function submit(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'type' => 'required|string',
-            'description' => 'required|string',
-            'location_name' => 'nullable|string',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:10240',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
-            'korban_meninggal' => 'nullable|integer',
+            'title'             => 'required|string|max:255',
+            'type'              => 'required|string',
+            'description'       => 'required|string',
+            'location_name'     => 'nullable|string',
+            'latitude'          => 'nullable|numeric',
+            'longitude'         => 'nullable|numeric',
+            // Flutter mengirim foto sebagai array field 'images[]' (maks 3 file)
+            'images'            => 'nullable|array|max:3',
+            'images.*'          => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'korban_meninggal'  => 'nullable|integer',
             'korban_luka_berat' => 'nullable|integer',
-            'korban_luka_ringan' => 'nullable|integer',
-            'korban_hilang' => 'nullable|integer',
-            'jumlah_pengungsi' => 'nullable|integer',
-            'kerusakan_fisik' => 'nullable|string',
+            'korban_luka_ringan'=> 'nullable|integer',
+            'korban_hilang'     => 'nullable|integer',
+            'jumlah_pengungsi'  => 'nullable|integer',
+            'kerusakan_fisik'   => 'nullable|string',
             'tingkat_kerusakan' => 'nullable|string',
-            'kebutuhan_logistik' => 'nullable|string',
+            'kebutuhan_logistik'=> 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -59,18 +59,19 @@ class ReportController extends Controller
 
         $idKecamatan = Kecamatan::value('id_kecamatan') ?? 1;
         $idKelurahan = Kelurahan::value('id_kelurahan') ?? 1;
-        $userId = $request->user() ? $request->user()->id_user : 1;
+        // Route sudah diproteksi auth:sanctum, $request->user() dijamin tidak null
+        $userId = $request->user()->id_user;
 
-        // Handle image upload if present
+        // Handle image upload dari Flutter (field 'images[]', maks 3 file)
+        // CATATAN: Kolom foto_laporan di DB (VARCHAR cast JSON) menyimpan array URL
+        // sehingga semua foto fisik tersimpan, namun Flutter ReportModel hanya
+        // membaca 1 URL via image_url (elemen pertama) karena field imageUrl tunggal.
         $imageUrls = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $file) {
                 $path = $file->store('reports', 'public');
                 $imageUrls[] = url('storage/' . $path);
             }
-        } elseif ($request->hasFile('image')) {
-            $path = $request->file('image')->store('reports', 'public');
-            $imageUrls[] = url('storage/' . $path);
         }
 
         $totalKorban = (int)($request->korban_meninggal ?? 0) + (int)($request->korban_luka_berat ?? 0) + (int)($request->korban_luka_ringan ?? 0) + (int)($request->korban_hilang ?? 0);
@@ -136,14 +137,14 @@ class ReportController extends Controller
      */
     public function myHistory(Request $request)
     {
-        $userId = $request->user() ? $request->user()->id_user : null;
+        // Route diproteksi auth:sanctum — filter id_user selalu diterapkan
+        // sehingga user A tidak pernah bisa melihat laporan milik user B
+        $userId = $request->user()->id_user;
 
-        $query = LaporanBencana::with(['bencana', 'penanganan']);
-        if ($userId) {
-            $query->where('id_user', $userId);
-        }
-
-        $reports = $query->orderBy('created_at', 'desc')->get();
+        $reports = LaporanBencana::with(['bencana', 'penanganan'])
+            ->where('id_user', $userId)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,

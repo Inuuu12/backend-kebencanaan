@@ -10,17 +10,17 @@ class NotificationController extends Controller
 {
     /**
      * Get user notifications
+     *
+     * Route diproteksi auth:sanctum — hanya mengembalikan notifikasi milik
+     * pengguna yang sedang login. User A tidak dapat membaca notifikasi user B.
      */
     public function index(Request $request)
     {
-        $userId = $request->user() ? $request->user()->id_user : null;
+        $userId = $request->user()->id_user;
 
-        $query = Notifikasi::orderBy('created_at', 'desc');
-        if ($userId) {
-            $query->where('id_user', $userId);
-        }
-
-        $notifications = $query->get();
+        $notifications = Notifikasi::where('id_user', $userId)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json([
             'success' => true,
