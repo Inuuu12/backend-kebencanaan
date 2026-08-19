@@ -35,7 +35,6 @@ export default function Complaints({ district, villages, complaints }) {
     // Handling Update Form
     const handlingForm = useForm({
         officer_name: '',
-        progress_percentage: 0,
         description: '',
         status: 'ongoing',
     });
@@ -388,7 +387,7 @@ export default function Complaints({ district, villages, complaints }) {
                                                             {new Date(h.created_at).toLocaleString('id-ID')}
                                                         </div>
                                                         <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>
-                                                            {h.officer_name} &bull; <span style={{ color: 'var(--color-primary)' }}>{h.progress_percentage}%</span>
+                                                            {h.officer_name}
                                                         </div>
                                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                                                             {h.description}
@@ -402,15 +401,11 @@ export default function Complaints({ district, villages, complaints }) {
                                     {/* Add Handling Form */}
                                     {selectedComplaint.status !== 'resolved' && selectedComplaint.status !== 'rejected' && (
                                         <form onSubmit={(e) => handleAddHandling(e, selectedComplaint.id)} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-                                            <h5 style={{ fontSize: '0.95rem', marginBottom: '1rem' }}>Input Progres Lapangan Baru</h5>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                            <h5 style={{ fontSize: '0.95rem', marginBottom: '1rem' }}>Input Update Lapangan Baru</h5>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                                 <div className="form-group">
                                                     <label htmlFor="h-officer">Nama Petugas / Instansi</label>
                                                     <input id="h-officer" type="text" className="form-control" placeholder="BPBD / Tagana / Damkar..." value={handlingForm.data.officer_name} onChange={(e) => handlingForm.setData('officer_name', e.target.value)} required />
-                                                </div>
-                                                <div className="form-group">
-                                                    <label htmlFor="h-progress">Progres (%)</label>
-                                                    <input id="h-progress" type="number" min="0" max="100" className="form-control" placeholder="Persen..." value={handlingForm.data.progress_percentage} onChange={(e) => handlingForm.setData('progress_percentage', parseInt(e.target.value))} required />
                                                 </div>
                                                 <div className="form-group">
                                                     <label htmlFor="h-status">Status Lapangan</label>
@@ -421,11 +416,11 @@ export default function Complaints({ district, villages, complaints }) {
                                                 </div>
                                             </div>
                                             <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                                                <label htmlFor="h-desc">Deskripsi Progres Pekerjaan</label>
+                                                <label htmlFor="h-desc">Deskripsi Pekerjaan</label>
                                                 <input id="h-desc" type="text" className="form-control" placeholder="Evakuasi selesai, penyaluran logistik..." value={handlingForm.data.description} onChange={(e) => handlingForm.setData('description', e.target.value)} required />
                                             </div>
                                             <button type="submit" className="btn-primary" style={{ padding: '0.55rem 1.25rem', fontSize: '0.85rem' }} disabled={handlingForm.processing}>
-                                                <PlusCircle size={14} /> Kirim Update Progres
+                                                <PlusCircle size={14} /> Kirim Update
                                             </button>
                                         </form>
                                     )}

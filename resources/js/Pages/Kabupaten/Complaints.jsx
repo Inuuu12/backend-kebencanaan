@@ -347,7 +347,7 @@ export default function Complaints({ districts, villages, complaints }) {
                                                             {new Date(h.created_at).toLocaleString('id-ID')}
                                                         </div>
                                                         <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>
-                                                            {h.officer_name} &bull; <span style={{ color: 'var(--color-primary)' }}>{h.progress_percentage}%</span>
+                                                            {h.officer_name}
                                                         </div>
                                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                                                             {h.description}

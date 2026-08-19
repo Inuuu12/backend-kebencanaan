@@ -59,6 +59,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Notifikasi personal (terfilter per pengguna)
     Route::get('/notifications', [NotificationController::class, 'index']);
+    // Manajemen Berita (Admin)
+    Route::post('/admin/news', [NewsController::class, 'store']);
+    Route::post('/admin/news/scrape', [NewsController::class, 'scrape']);
 });
 
 // PENTING: Wildcard /reports/{id} HARUS didaftarkan PALING TERAKHIR dari semua

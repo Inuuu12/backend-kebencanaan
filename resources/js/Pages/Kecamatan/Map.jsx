@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Layout from '../../Components/Layout';
+import { masterDataService } from '../../api/services/masterData';
+import { drawAdminBoundaries, getResponseDataArray, normalizeName } from '../../lib/mapBoundaries';
 import { Layers, MapPin, RefreshCw, Filter } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -11,6 +13,14 @@ export default function Map({ district, villages, complaints }) {
     const [selectedPriority, setSelectedPriority] = useState('all');
     const mapRef = useRef(null);
     const layerGroupRef = useRef(null);
+    const polygonGroupRef = useRef(null);
+    const [adminBoundaries, setAdminBoundaries] = useState([]);
+
+    useEffect(() => {
+        masterDataService.getBoundaries({ level: 'kelurahan' })
+            .then((res) => setAdminBoundaries(getResponseDataArray(res)))
+            .catch((err) => console.error('Gagal memuat batas wilayah:', err));
+    }, []);
 
     // Filter complaints based on state
     const filteredComplaints = complaints.filter(c => {
@@ -29,7 +39,7 @@ export default function Map({ district, villages, complaints }) {
             zoomControl: false
         }).setView([-6.582, 106.871], 13);
 
-        L.tileLayer('https://{s.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
         }).addTo(map);
 
@@ -39,41 +49,7 @@ export default function Map({ district, villages, complaints }) {
 
         mapRef.current = map;
 
-        // Add Village boundary Polygons
-        villages.forEach(v => {
-            if (v.geojson) {
-                try {
-                    const geoJsonData = JSON.parse(v.geojson);
-                    const emStatus = v.emergency_status;
-
-                    let color = '#10b981'; // normal
-                    if (emStatus && emStatus.is_emergency) {
-                        if (emStatus.emergency_level === 'siaga') color = '#f97316';
-                        else if (emStatus.emergency_level === 'waspada') color = '#eab308';
-                        else if (emStatus.emergency_level === 'awas') color = '#ef4444';
-                    }
-
-                    const polygon = L.geoJSON(geoJsonData, {
-                        style: {
-                            color: color,
-                            weight: 2,
-                            fillColor: color,
-                            fillOpacity: 0.08
-                        }
-                    }).addTo(map);
-
-                    polygon.bindPopup(`
-                        <div style="color: #0f172a; padding: 0.25rem;">
-                            <strong style="font-size: 0.95rem;">Desa ${v.name}</strong>
-                            <div style="font-size: 0.75rem; margin: 0.25rem 0;">Status: <span style="font-weight:700; color: ${color}; text-transform: uppercase;">${emStatus && emStatus.is_emergency ? emStatus.emergency_level : 'Normal'}</span></div>
-                            <div style="font-size: 0.75rem; color: #64748b;">${emStatus ? emStatus.description : 'Aman kondusif.'}</div>
-                        </div>
-                    `);
-                } catch (e) {
-                    console.error("Error parsing GeoJSON for village " + v.name, e);
-                }
-            }
-        });
+        polygonGroupRef.current = L.layerGroup().addTo(map);
 
         // Layer Group for markers
         const layerGroup = L.layerGroup().addTo(map);
@@ -83,6 +59,25 @@ export default function Map({ district, villages, complaints }) {
             map.remove();
         };
     }, [villages]);
+
+    useEffect(() => {
+        if (!mapRef.current || !polygonGroupRef.current) return;
+
+        const selectedVillageName = selectedVillage === 'all'
+            ? null
+            : villages.find((v) => String(v.id) === selectedVillage)?.name;
+
+        drawAdminBoundaries(L, polygonGroupRef.current, adminBoundaries, {
+            levels: ['kelurahan'],
+            filter: (boundary) => {
+                const matchesDistrict = !district?.name || normalizeName(boundary.parent_name) === normalizeName(district.name);
+                const matchesVillage = !selectedVillageName || normalizeName(boundary.name) === normalizeName(selectedVillageName);
+                return matchesDistrict && matchesVillage;
+            },
+            fitMap: mapRef.current,
+            fitOptions: { padding: [24, 24], maxZoom: selectedVillageName ? 14 : 13 },
+        });
+    }, [adminBoundaries, district, selectedVillage, villages]);
 
     // Redraw markers when filters change
     useEffect(() => {

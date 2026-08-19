@@ -205,12 +205,12 @@ export default function Penanganan({
                 <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
                         <Activity size={18} className="color-primary" />
-                        Log Perkembangan Penanganan se-Kecamatan
+                        Log Penanganan se-Kecamatan
                     </h3>
 
                     {handlings.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-muted)' }}>
-                            Belum ada perkembangan penanganan tercatat.
+                            Belum ada update penanganan tercatat.
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.25rem' }}>
@@ -229,26 +229,10 @@ export default function Penanganan({
                                             <User size={14} className="color-primary" />
                                             {hand.officer_name}
                                         </div>
-                                        <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: hand.progress_percentage === 100 ? '#10b981' : '#f97316' }}>
-                                            {hand.progress_percentage}% Progres
-                                        </div>
                                     </div>
                                     
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', lineHeight: 1.4 }}>
                                         {hand.description}
-                                    </div>
-
-                                    {/* Progress Bar UI */}
-                                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden', marginBottom: '0.4rem' }}>
-                                        <div 
-                                            style={{ 
-                                                width: `${hand.progress_percentage}%`, 
-                                                height: '100%', 
-                                                background: hand.progress_percentage === 100 ? 'linear-gradient(90deg, #10b981, #059669)' : 'linear-gradient(90deg, #f97316, #d97706)',
-                                                borderRadius: '3px',
-                                                transition: 'width 0.4s ease'
-                                            }}
-                                        />
                                     </div>
 
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>

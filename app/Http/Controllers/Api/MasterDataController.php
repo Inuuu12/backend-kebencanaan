@@ -27,37 +27,94 @@ class MasterDataController extends Controller
     /**
      * Get GeoJSON boundaries / polygon coordinates for map
      */
-    public function boundaries()
+    public function boundaries(Request $request)
     {
-        $boundaries = [
-            [
-                'id' => 'menteng_zone',
-                'name' => 'Kecamatan Menteng (Zona Rawan)',
-                'risk_level' => 'Sedang',
-                'points' => [
-                    ['lat' => -6.1950, 'lng' => 106.8250],
-                    ['lat' => -6.1950, 'lng' => 106.8450],
-                    ['lat' => -6.2100, 'lng' => 106.8450],
-                    ['lat' => -6.2100, 'lng' => 106.8250],
-                ]
-            ],
-            [
-                'id' => 'ciliwung_riverbank',
-                'name' => 'Bantaran Ciliwung (Banjir Waspada)',
-                'risk_level' => 'Tinggi',
-                'points' => [
-                    ['lat' => -6.2150, 'lng' => 106.8550],
-                    ['lat' => -6.2180, 'lng' => 106.8580],
-                    ['lat' => -6.2250, 'lng' => 106.8620],
-                    ['lat' => -6.2200, 'lng' => 106.8520],
-                ]
-            ]
-        ];
+        $levels = $request->query('level')
+            ? array_filter(array_map('trim', explode(',', $request->query('level'))))
+            : ['kabupaten', 'kecamatan'];
+
+        $boundaries = $this->loadAdminBoundaries($levels);
 
         return response()->json([
             'success' => true,
             'data' => $boundaries
         ]);
+    }
+
+    private function loadAdminBoundaries(array $levels): array
+    {
+        ini_set('memory_limit', '512M');
+
+        $zipPath = base_path('rencana/sumber/json admin wil.zip');
+
+        if (!file_exists($zipPath) || !class_exists(\ZipArchive::class)) {
+            return [];
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            return [];
+        }
+
+        $sources = [
+            [
+                'file' => 'admin_kab.json',
+                'level' => 'kabupaten',
+                'id_key' => 'CKAB',
+                'name_key' => 'NKAB',
+            ],
+            [
+                'file' => 'admin_kec.json',
+                'level' => 'kecamatan',
+                'id_key' => 'CKEC',
+                'name_key' => 'NKEC',
+            ],
+            [
+                'file' => 'admin_kel.json',
+                'level' => 'kelurahan',
+                'id_key' => 'CKEL',
+                'name_key' => 'NKEL',
+                'parent_key' => 'NKEC',
+            ],
+        ];
+
+        $boundaries = [];
+
+        foreach ($sources as $source) {
+            if (!in_array($source['level'], $levels, true)) {
+                continue;
+            }
+
+            $contents = $zip->getFromName($source['file']);
+            if ($contents === false) {
+                continue;
+            }
+
+            $collection = json_decode($contents, true);
+            if (!is_array($collection) || !isset($collection['features']) || !is_array($collection['features'])) {
+                continue;
+            }
+
+            foreach ($collection['features'] as $feature) {
+                $properties = $feature['properties'] ?? [];
+                $id = $properties[$source['id_key']] ?? count($boundaries) + 1;
+                $name = $properties[$source['name_key']] ?? $source['level'];
+                $parentName = isset($source['parent_key']) ? ($properties[$source['parent_key']] ?? null) : null;
+
+                $boundaries[] = [
+                    'id' => $source['level'] . '-' . $id,
+                    'level' => $source['level'],
+                    'name' => $name,
+                    'parent_name' => $parentName,
+                    'properties' => $properties,
+                    'geojson' => $feature,
+                ];
+            }
+        }
+
+        $zip->close();
+
+        return $boundaries;
     }
 
     /**

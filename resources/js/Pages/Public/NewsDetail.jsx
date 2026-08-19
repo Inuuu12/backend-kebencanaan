@@ -30,11 +30,8 @@ export default function NewsDetail() {
     return (
         <PublicLayout>
             <div className="container mx-auto px-6 py-12 max-w-4xl">
-                <Link to="/news" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#FF750F] transition-colors font-medium mb-8">
-                    <ArrowLeft size={18} />
-                    <span>Kembali ke Berita</span>
-                </Link>
-
+                {/* Global Back Button rendered by PublicLayout */}
+                
                 {error && (
                     <div className="alert-banner error mb-8 animate-fade-in flex items-center gap-3">
                         <AlertTriangle size={20} />

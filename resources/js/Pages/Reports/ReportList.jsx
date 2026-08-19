@@ -3,20 +3,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../../Components/Layout';
 import { reportService } from '../../api/services/reports';
+import { useAuth } from '../../AuthContext';
+import { canCreateAdminReport, getAdminScopeFilters, getAdminScopeLabel } from '../../lib/adminScope';
+import { getResponseDataArray } from '../../lib/mapBoundaries';
 import { 
     Search, 
     AlertTriangle, 
     Eye,
     MapPin,
     Calendar,
-    Activity,
     Info
 } from 'lucide-react';
-import { PageLoader, EmptyState, ErrorState } from '../../Components/ui/Feedback';
+import { EmptyState, ErrorState } from '../../Components/ui/Feedback';
 
 export default function ReportList() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
     
     // Determine active page and base path from current URL
     const isKabupaten = location.pathname.includes('/kabupaten');
@@ -35,9 +38,8 @@ export default function ReportList() {
         const fetchReports = async () => {
             try {
                 setLoading(true);
-                // We use mapReports to get the active global list as there is no specific paginated list
-                const response = await reportService.getMapReports();
-                setReports(response.data?.data || []);
+                const response = await reportService.getMapReports(getAdminScopeFilters(user));
+                setReports(getResponseDataArray(response));
             } catch (err) {
                 console.error("Failed to fetch reports:", err);
                 setError("Gagal memuat data laporan.");
@@ -46,8 +48,8 @@ export default function ReportList() {
             }
         };
 
-        fetchReports();
-    }, []);
+        if (user) fetchReports();
+    }, [user]);
 
     // Extract unique disaster types for filter
     const uniqueTypes = [...new Set(reports.map(r => r.type))];
@@ -64,6 +66,15 @@ export default function ReportList() {
         return matchesSearch && matchesStatus && matchesType;
     });
 
+    const summary = filteredReports.reduce((acc, report) => {
+        const victims = Number(report.jumlah_korban || 0);
+        acc.total += 1;
+        acc.victims += victims;
+        acc.byDistrict[report.kecamatan_name || 'Tidak diketahui'] = (acc.byDistrict[report.kecamatan_name || 'Tidak diketahui'] || 0) + 1;
+        acc.byVillage[report.kelurahan_name || 'Tidak diketahui'] = (acc.byVillage[report.kelurahan_name || 'Tidak diketahui'] || 0) + 1;
+        return acc;
+    }, { total: 0, victims: 0, byDistrict: {}, byVillage: {} });
+
     const getStatusBadgeClass = (status) => {
         const s = status.toLowerCase();
         if (s === 'pending') return 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20';
@@ -74,7 +85,26 @@ export default function ReportList() {
     };
 
     return (
-        <Layout activePage={activePage} title="Daftar Aduan Bencana">
+        <Layout activePage={activePage} title={isKabupaten ? 'Data Terverifikasi' : 'Daftar Aduan Bencana'}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="panel-card p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-400 font-bold">Cakupan Data</div>
+                    <div className="text-lg font-extrabold text-slate-100 mt-1">{getAdminScopeLabel(user)}</div>
+                </div>
+                <div className="panel-card p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-400 font-bold">Total Aduan</div>
+                    <div className="text-3xl font-extrabold text-orange-400 mt-1">{summary.total}</div>
+                </div>
+                <div className="panel-card p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-400 font-bold">Korban Terdampak</div>
+                    <div className="text-3xl font-extrabold text-red-400 mt-1">{summary.victims}</div>
+                </div>
+                <div className="panel-card p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-400 font-bold">{isKabupaten ? 'Kecamatan Terdata' : 'Desa Terdata'}</div>
+                    <div className="text-3xl font-extrabold text-blue-400 mt-1">{Object.keys(isKabupaten ? summary.byDistrict : summary.byVillage).length}</div>
+                </div>
+            </div>
+
             <div className="panel-card mb-6 p-4">
                 <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                     <div className="flex flex-col md:flex-row gap-4 items-center w-full">
@@ -114,12 +144,14 @@ export default function ReportList() {
                         </div>
                     </div>
                     
-                    <button 
-                        onClick={() => navigate(`${basePath}/buat`)}
-                        className="w-full md:w-auto flex-shrink-0 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors"
-                    >
-                        <span className="text-xl leading-none">+</span> Buat Laporan
-                    </button>
+                    {canCreateAdminReport(user) && (
+                        <button 
+                            onClick={() => navigate(`${basePath}/buat`)}
+                            className="w-full md:w-auto flex-shrink-0 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors"
+                        >
+                            <span className="text-xl leading-none">+</span> Buat Laporan
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -130,30 +162,26 @@ export default function ReportList() {
                             <tr className="border-b border-slate-700 text-slate-400 text-sm">
                                 <th className="py-3 px-4 font-medium">Tanggal</th>
                                 <th className="py-3 px-4 font-medium">Bencana</th>
+                                <th className="py-3 px-4 font-medium">Wilayah</th>
+                                <th className="py-3 px-4 font-medium">Korban</th>
                                 <th className="py-3 px-4 font-medium">Judul & Lokasi</th>
                                 <th className="py-3 px-4 font-medium">Status</th>
                                 <th className="py-3 px-4 font-medium text-right">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {loading ? (
+                            {error ? (
                                 <tr>
-                                    <td colSpan="5" className="p-0">
-                                        <PageLoader message="Memuat data laporan..." />
-                                    </td>
-                                </tr>
-                            ) : error ? (
-                                <tr>
-                                    <td colSpan="5" className="p-0">
+                                    <td colSpan="7" className="p-0">
                                         <ErrorState 
                                             message={error} 
                                             onRetry={() => window.location.reload()} 
                                         />
                                     </td>
                                 </tr>
-                            ) : filteredReports.length === 0 ? (
+                            ) : filteredReports.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan="5" className="p-4">
+                                    <td colSpan="7" className="p-4">
                                         <EmptyState 
                                             icon={Info} 
                                             title="Tidak ada laporan" 
@@ -174,6 +202,13 @@ export default function ReportList() {
                                         </td>
                                         <td className="py-3 px-4">
                                             <span className="font-medium text-slate-200">{report.type}</span>
+                                        </td>
+                                        <td className="py-3 px-4 text-sm text-slate-300">
+                                            <div className="font-semibold">{report.kecamatan_name || '-'}</div>
+                                            <div className="text-xs text-slate-500">{report.kelurahan_name || '-'}</div>
+                                        </td>
+                                        <td className="py-3 px-4 text-sm text-slate-300">
+                                            {report.jumlah_korban || 0} orang
                                         </td>
                                         <td className="py-3 px-4">
                                             <div className="font-medium text-slate-200">{report.title}</div>

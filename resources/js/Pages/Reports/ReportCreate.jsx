@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../../Components/Layout';
 import { reportService } from '../../api/services/reports';
+import { masterDataService } from '../../api/services/masterData';
 import { ArrowLeft, Save, AlertTriangle, Image as ImageIcon, Target, X } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { drawAdminBoundaries, getResponseDataArray } from '../../lib/mapBoundaries';
 
 // Fix leaflet default icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -43,6 +45,7 @@ export default function ReportCreate() {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const mapContainerRef = useRef(null);
+    const boundariesGroupRef = useRef(null);
 
     // Inisialisasi Peta
     useEffect(() => {
@@ -62,6 +65,16 @@ export default function ReportCreate() {
         }).addTo(map);
         
         L.control.zoom({ position: 'bottomright' }).addTo(map);
+        boundariesGroupRef.current = L.layerGroup().addTo(map);
+
+        masterDataService.getBoundaries({ level: 'kecamatan' })
+            .then((res) => {
+                if (!boundariesGroupRef.current || !mapRef.current) return;
+                drawAdminBoundaries(L, boundariesGroupRef.current, getResponseDataArray(res), {
+                    levels: ['kecamatan'],
+                });
+            })
+            .catch((err) => console.error('Gagal memuat batas wilayah:', err));
 
         // Map Click Event
         map.on('click', async (e) => {

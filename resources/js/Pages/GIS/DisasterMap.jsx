@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../../Components/Layout';
+import { useAuth } from '../../AuthContext';
 import { reportService } from '../../api/services/reports';
 import { masterDataService } from '../../api/services/masterData';
+import { drawAdminBoundaries, getResponseDataArray } from '../../lib/mapBoundaries';
+import { getAdminScopeFilters, getAdminScopeLabel } from '../../lib/adminScope';
 import { homeService } from '../../api/services/home';
-import { Filter, Layers, MapPin, AlertTriangle, RefreshCw, X, ArrowRight, CloudLightning, Activity, Clock } from 'lucide-react';
+import { Filter, Layers, MapPin, AlertTriangle, RefreshCw, X, ArrowRight, Download, Table2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -20,6 +23,7 @@ L.Icon.Default.mergeOptions({
 export default function DisasterMap() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
     
     const isKabupaten = location.pathname.includes('/kabupaten');
     const isKecamatan = location.pathname.includes('/kecamatan');
@@ -27,7 +31,8 @@ export default function DisasterMap() {
     
     const [reports, setReports] = useState([]);
     const [boundaries, setBoundaries] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [kecamatanList, setKecamatanList] = useState([]);
+    const [kelurahanList, setKelurahanList] = useState([]);
     const [error, setError] = useState(null);
     const [weather, setWeather] = useState(null);
 
@@ -35,6 +40,7 @@ export default function DisasterMap() {
     const [selectedType, setSelectedType] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('');
     const [selectedReport, setSelectedReport] = useState(null);
+    const [isRecapOpen, setIsRecapOpen] = useState(true);
 
     const mapRef = useRef(null);
     const markersGroupRef = useRef(null);
@@ -43,29 +49,32 @@ export default function DisasterMap() {
     // Load data
     const fetchMapData = async () => {
         try {
-            setLoading(true);
             setError(null);
+            const scopeFilters = getAdminScopeFilters(user);
+            const kelurahanScopeId = isKabupaten ? null : (scopeFilters.kecamatan_id || user?.id_kecamatan || null);
             
-            const [reportsRes, boundariesRes, weatherRes] = await Promise.all([
-                reportService.getMapReports(),
-                masterDataService.getBoundaries().catch(() => ({ data: { data: [] } })),
-                homeService.getWeather().catch(() => null)
+            const [reportsRes, boundariesRes, weatherRes, kecamatanRes, kelurahanRes] = await Promise.all([
+                reportService.getMapReports(scopeFilters),
+                masterDataService.getBoundaries(isKabupaten ? {} : { level: 'kelurahan' }).catch(() => ({ data: { data: [] } })),
+                homeService.getWeather().catch(() => null),
+                masterDataService.getKecamatan().catch(() => []),
+                masterDataService.getKelurahan(kelurahanScopeId).catch(() => [])
             ]);
             setWeather(weatherRes);
 
-            setReports(reportsRes.data?.data || []);
-            setBoundaries(boundariesRes.data?.data || []);
+            setReports(getResponseDataArray(reportsRes));
+            setBoundaries(getResponseDataArray(boundariesRes));
+            setKecamatanList(getResponseDataArray(kecamatanRes));
+            setKelurahanList(getResponseDataArray(kelurahanRes));
         } catch (err) {
             console.error("Gagal memuat data GIS:", err);
             setError("Gagal memuat data peta.");
-        } finally {
-            setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchMapData();
-    }, []);
+        if (user) fetchMapData();
+    }, [user]);
 
     // Derived filters
     const uniqueTypes = useMemo(() => [...new Set(reports.map(r => r.type))], [reports]);
@@ -77,12 +86,170 @@ export default function DisasterMap() {
         });
     }, [reports, selectedType, selectedStatus]);
 
+    const recapRows = useMemo(() => {
+        const kecamatanById = new Map(
+            kecamatanList.map((item) => [String(item.id_kecamatan || item.id), item])
+        );
+        const scopedKelurahan = kelurahanList.filter((item) => {
+            const kecamatanId = String(item.id_kecamatan || '');
+            const kelurahanId = String(item.id_kelurahan || item.id || '');
+
+            if (!isKabupaten && user?.id_kecamatan && kecamatanId !== String(user.id_kecamatan)) {
+                return false;
+            }
+
+            if (!isKabupaten && !isKecamatan && user?.id_kelurahan && kelurahanId !== String(user.id_kelurahan)) {
+                return false;
+            }
+
+            return true;
+        });
+        const rowsByKelurahan = new Map();
+
+        scopedKelurahan.forEach((kelurahan) => {
+            const kecamatan = kecamatanById.get(String(kelurahan.id_kecamatan || ''));
+            const key = String(kelurahan.id_kelurahan || kelurahan.id);
+
+            rowsByKelurahan.set(key, {
+                idKecamatan: kelurahan.id_kecamatan,
+                idKelurahan: kelurahan.id_kelurahan || kelurahan.id,
+                kecamatan: kecamatan?.nama_kecamatan || kelurahan.nama_kecamatan || user?.nama_kecamatan || '-',
+                kelurahan: kelurahan.nama_kelurahan || kelurahan.nama_desa || user?.nama_kelurahan || '-',
+                total: 0,
+                korban: 0,
+                meninggal: 0,
+                lukaBerat: 0,
+                lukaRingan: 0,
+                hilang: 0,
+                mengungsi: 0,
+                jenisKerusakan: new Set(),
+                rusakRingan: 0,
+                rusakSedang: 0,
+                rusakBerat: 0,
+            });
+        });
+
+        if (rowsByKelurahan.size === 0 && user?.id_kelurahan) {
+            rowsByKelurahan.set(String(user.id_kelurahan), {
+                idKecamatan: user.id_kecamatan,
+                idKelurahan: user.id_kelurahan,
+                kecamatan: user.nama_kecamatan || '-',
+                kelurahan: user.nama_kelurahan || '-',
+                total: 0,
+                korban: 0,
+                meninggal: 0,
+                lukaBerat: 0,
+                lukaRingan: 0,
+                hilang: 0,
+                mengungsi: 0,
+                jenisKerusakan: new Set(),
+                rusakRingan: 0,
+                rusakSedang: 0,
+                rusakBerat: 0,
+            });
+        }
+
+        filteredReports.forEach((report) => {
+            const key = String(report.id_kelurahan || '');
+            const current = rowsByKelurahan.get(key);
+            if (!current) return;
+
+            const korban = report.korban_breakdown || {};
+            const kerusakan = report.kerusakan_breakdown || {};
+            const meninggal = Number(korban.meninggal || 0);
+            const lukaBerat = Number(korban.luka_berat || 0);
+            const lukaRingan = Number(korban.luka_ringan || 0);
+            const hilang = Number(korban.hilang || 0);
+            const korbanDetail = meninggal + lukaBerat + lukaRingan + hilang;
+
+            current.total += 1;
+            current.korban += korbanDetail || Number(report.jumlah_korban || 0);
+            current.meninggal += meninggal;
+            current.lukaBerat += lukaBerat;
+            current.lukaRingan += lukaRingan;
+            current.hilang += hilang;
+            current.mengungsi += Number(korban.mengungsi || 0);
+            (report.kerusakan_jenis || []).forEach((jenis) => {
+                if (jenis) current.jenisKerusakan.add(jenis);
+            });
+            current.rusakRingan += Number(kerusakan.ringan || 0);
+            current.rusakSedang += Number(kerusakan.sedang || 0);
+            current.rusakBerat += Number(kerusakan.berat || 0);
+        });
+
+        return Array.from(rowsByKelurahan.values()).map((row) => ({
+            ...row,
+            jenisKerusakanText: Array.from(row.jenisKerusakan).join(', ') || '-',
+        })).sort((a, b) => {
+            return `${a.kecamatan} ${a.kelurahan}`.localeCompare(`${b.kecamatan} ${b.kelurahan}`);
+        });
+    }, [filteredReports, kecamatanList, kelurahanList, isKabupaten, isKecamatan, user]);
+
+    const recapTotals = useMemo(() => {
+        return recapRows.reduce((acc, row) => {
+            acc.total += row.total;
+            acc.korban += row.korban;
+            acc.meninggal += row.meninggal;
+            acc.lukaBerat += row.lukaBerat;
+            acc.lukaRingan += row.lukaRingan;
+            acc.hilang += row.hilang;
+            acc.mengungsi += row.mengungsi;
+            acc.rusakRingan += row.rusakRingan;
+            acc.rusakSedang += row.rusakSedang;
+            acc.rusakBerat += row.rusakBerat;
+            return acc;
+        }, {
+            total: 0,
+            korban: 0,
+            meninggal: 0,
+            lukaBerat: 0,
+            lukaRingan: 0,
+            hilang: 0,
+            mengungsi: 0,
+            rusakRingan: 0,
+            rusakSedang: 0,
+            rusakBerat: 0,
+        });
+    }, [recapRows]);
+
+    const downloadRecapCsv = () => {
+        const headers = ['Kecamatan', 'Desa/Kelurahan', 'Total Aduan', 'Total Korban', 'Meninggal', 'Luka Berat', 'Luka Ringan', 'Hilang', 'Mengungsi', 'Jenis Kerusakan', 'Rusak Ringan', 'Rusak Sedang', 'Rusak Berat'];
+        const rows = recapRows.map((row) => [
+            row.kecamatan,
+            row.kelurahan,
+            row.total,
+            row.korban,
+            row.meninggal,
+            row.lukaBerat,
+            row.lukaRingan,
+            row.hilang,
+            row.mengungsi,
+            row.jenisKerusakanText,
+            row.rusakRingan,
+            row.rusakSedang,
+            row.rusakBerat,
+        ]);
+
+        const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
+        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `rekap-peta-wilayah-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     // Init Map
     useEffect(() => {
         if (!mapRef.current) {
             const map = L.map('disaster-map-container', {
                 zoomControl: false,
-                attributionControl: false
+                attributionControl: false,
+                preferCanvas: true
             }).setView([-6.582, 106.871], 11); // Center on Kabupaten Bogor
 
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
@@ -109,32 +276,10 @@ export default function DisasterMap() {
         if (!boundariesGroupRef.current || !mapRef.current) return;
         boundariesGroupRef.current.clearLayers();
 
-        boundaries.forEach(b => {
-            if (b.points && Array.isArray(b.points) && b.points.length > 2) {
-                const latLngs = b.points.map(p => [p.lat, p.lng]);
-                
-                let color = '#3b82f6'; // blue
-                if (b.risk_level === 'Tinggi') color = '#ef4444';
-                else if (b.risk_level === 'Sedang') color = '#f59e0b';
-
-                const polygon = L.polygon(latLngs, {
-                    color: color,
-                    weight: 2,
-                    fillColor: color,
-                    fillOpacity: 0.2
-                });
-
-                polygon.bindPopup(`
-                    <div class="p-1">
-                        <strong class="block mb-1">${b.name}</strong>
-                        <span class="text-xs px-2 py-0.5 rounded bg-gray-100">Risiko: ${b.risk_level}</span>
-                    </div>
-                `);
-
-                boundariesGroupRef.current.addLayer(polygon);
-            }
+        drawAdminBoundaries(L, boundariesGroupRef.current, boundaries, {
+            levels: isKabupaten ? ['kabupaten', 'kecamatan'] : ['kelurahan'],
         });
-    }, [boundaries]);
+    }, [boundaries, isKabupaten]);
 
     // Draw Markers
     useEffect(() => {
@@ -170,7 +315,7 @@ export default function DisasterMap() {
 
 
     return (
-        <Layout activePage="map" title="Peta Sebaran Bencana" fullScreen={true}>
+        <Layout activePage="map" title="Peta Wilayah dan Sebaran Aduan" fullScreen={true}>
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -210,32 +355,133 @@ export default function DisasterMap() {
 
                     <div className="flex items-center gap-4">
                         <div className="text-sm text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
-                            Menampilkan <strong className="text-slate-900 dark:text-white">{filteredReports.length}</strong> titik
+                            {getAdminScopeLabel(user)} | <strong className="text-slate-900 dark:text-white">{filteredReports.length}</strong> titik
                         </div>
+                        <button
+                            onClick={() => setIsRecapOpen((value) => !value)}
+                            className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-colors"
+                            title="Tampilkan rekap tabel"
+                        >
+                            <Table2 size={18} />
+                        </button>
                         <motion.button 
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={fetchMapData}
-                            disabled={loading}
                             className="p-2 text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-xl transition-colors border border-transparent hover:border-orange-500/20 shadow-sm"
                             title="Refresh Data"
                         >
-                            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                            <RefreshCw size={18} />
                         </motion.button>
                     </div>
                 </div>
 
+                <AnimatePresence>
+                    {isRecapOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 16 }}
+                            className="absolute bottom-6 right-6 z-[410] w-[min(1080px,calc(100vw-2rem))] max-h-[62vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+                        >
+                            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                        <Table2 size={18} className="text-blue-500" />
+                                        Rekap Data Wilayah
+                                    </h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                        {getAdminScopeLabel(user)} | {recapRows.length} desa/kelurahan | {recapTotals.total} aduan | {recapTotals.korban} korban terdampak
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={downloadRecapCsv}
+                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+                                    >
+                                        <Download size={14} />
+                                        Excel
+                                    </button>
+                                    <button
+                                        onClick={() => setIsRecapOpen(false)}
+                                        className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="overflow-auto max-h-[calc(62vh-88px)]">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                        <tr>
+                                            <th className="px-4 py-3 font-bold min-w-36">Kecamatan</th>
+                                            <th className="px-4 py-3 font-bold min-w-40">Desa/Kelurahan</th>
+                                            <th className="px-4 py-3 font-bold text-right">Aduan</th>
+                                            <th className="px-4 py-3 font-bold text-right">Korban</th>
+                                            <th className="px-4 py-3 font-bold text-right">Meninggal</th>
+                                            <th className="px-4 py-3 font-bold text-right">Luka Berat</th>
+                                            <th className="px-4 py-3 font-bold text-right">Luka Ringan</th>
+                                            <th className="px-4 py-3 font-bold text-right">Hilang</th>
+                                            <th className="px-4 py-3 font-bold text-right">Mengungsi</th>
+                                            <th className="px-4 py-3 font-bold min-w-48">Jenis Kerusakan</th>
+                                            <th className="px-4 py-3 font-bold text-right">Rusak Ringan</th>
+                                            <th className="px-4 py-3 font-bold text-right">Rusak Sedang</th>
+                                            <th className="px-4 py-3 font-bold text-right">Rusak Berat</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                                        {recapRows.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="13" className="px-4 py-8 text-center text-slate-500">
+                                                    Tidak ada data rekap untuk filter ini.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            recapRows.map((row) => (
+                                                <tr key={`${row.idKecamatan}-${row.idKelurahan}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/70">
+                                                    <td className="px-4 py-3 font-semibold">{row.kecamatan}</td>
+                                                    <td className="px-4 py-3">{row.kelurahan}</td>
+                                                    <td className="px-4 py-3 text-right">{row.total}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">{row.korban}</td>
+                                                    <td className="px-4 py-3 text-right">{row.meninggal}</td>
+                                                    <td className="px-4 py-3 text-right">{row.lukaBerat}</td>
+                                                    <td className="px-4 py-3 text-right">{row.lukaRingan}</td>
+                                                    <td className="px-4 py-3 text-right">{row.hilang}</td>
+                                                    <td className="px-4 py-3 text-right">{row.mengungsi}</td>
+                                                    <td className="px-4 py-3">{row.jenisKerusakanText}</td>
+                                                    <td className="px-4 py-3 text-right">{row.rusakRingan}</td>
+                                                    <td className="px-4 py-3 text-right">{row.rusakSedang}</td>
+                                                    <td className="px-4 py-3 text-right">{row.rusakBerat}</td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                    {recapRows.length > 0 && (
+                                        <tfoot className="sticky bottom-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-extrabold">
+                                            <tr>
+                                                <td className="px-4 py-3" colSpan="2">Total</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.total}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.korban}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.meninggal}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.lukaBerat}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.lukaRingan}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.hilang}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.mengungsi}</td>
+                                                <td className="px-4 py-3"></td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.rusakRingan}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.rusakSedang}</td>
+                                                <td className="px-4 py-3 text-right">{recapTotals.rusakBerat}</td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
+                                </table>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Map Container */}
                 <div className="absolute inset-0 z-0 bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                    {loading && reports.length === 0 && (
-                        <div className="absolute inset-0 z-[1000] bg-white/50 dark:bg-slate-900/50 backdrop-blur-md flex items-center justify-center">
-                            <div className="flex flex-col items-center text-orange-500 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700">
-                                <RefreshCw size={32} className="animate-spin mb-3" />
-                                <span className="font-bold">Memuat Data GIS...</span>
-                            </div>
-                        </div>
-                    )}
-                    
                     {error && (
                         <motion.div initial={{ y: -50 }} animate={{ y: 0 }} className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-red-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-red-400 font-bold">
                             <AlertTriangle size={18} />

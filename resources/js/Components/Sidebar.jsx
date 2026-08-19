@@ -13,6 +13,7 @@ import {
     LogOut,
     FlameKindling,
     Activity,
+    Newspaper,
     X
 } from 'lucide-react';
 
@@ -33,7 +34,8 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
         if (user.role === 'superadmin') {
             return [
                 { id: 'dashboard', name: 'Beranda', url: '/dashboard/kabupaten', icon: LayoutDashboard },
-                { id: 'complaints', name: 'Aduan Warga', url: '/dashboard/kabupaten/aduan', icon: FileText },
+                { id: 'complaints', name: 'Data Terverifikasi', url: '/dashboard/kabupaten/aduan', icon: FileText },
+                { id: 'berita', name: 'Kelola Berita', url: '/dashboard/kabupaten/berita', icon: Newspaper },
                 { id: 'map', name: 'Peta Wilayah', url: '/dashboard/kabupaten/peta', icon: MapIcon },
                 { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kabupaten/penanganan', icon: Activity },
                 { id: 'profile', name: 'Profil Operator', url: '/dashboard/kabupaten/profil', icon: User },

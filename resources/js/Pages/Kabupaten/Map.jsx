@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Layout from '../../Components/Layout';
+import { masterDataService } from '../../api/services/masterData';
+import { drawAdminBoundaries, getResponseDataArray, normalizeName } from '../../lib/mapBoundaries';
 import { Layers, MapPin, RefreshCw, Filter } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -13,6 +15,13 @@ export default function Map({ districts, villages, complaints }) {
     const mapRef = useRef(null);
     const layerGroupRef = useRef(null);
     const polygonGroupRef = useRef(null);
+    const [adminBoundaries, setAdminBoundaries] = useState([]);
+
+    useEffect(() => {
+        masterDataService.getBoundaries({ level: 'kelurahan' })
+            .then((res) => setAdminBoundaries(getResponseDataArray(res)))
+            .catch((err) => console.error('Gagal memuat batas wilayah:', err));
+    }, []);
 
     // Filter villages for dropdown selection based on selected district
     const filteredVillagesDropdown = useMemo(() => {
@@ -75,48 +84,17 @@ export default function Map({ districts, villages, complaints }) {
 
         polygonGroupRef.current.clearLayers();
 
-        // Draw polygons only for relevant villages
-        villages.forEach(v => {
-            const matchesDistrict = selectedDistrict === 'all' || v.district_id === parseInt(selectedDistrict);
-            if (!matchesDistrict) return;
+        const selectedDistrictName = selectedDistrict === 'all'
+            ? null
+            : districts.find((d) => d.id === parseInt(selectedDistrict))?.name;
 
-            if (v.geojson) {
-                try {
-                    const geoJsonData = JSON.parse(v.geojson);
-                    const emStatus = v.emergency_status;
-
-                    let color = '#10b981'; // normal
-                    if (emStatus && emStatus.is_emergency) {
-                        if (emStatus.emergency_level === 'siaga') color = '#f97316';
-                        else if (emStatus.emergency_level === 'waspada') color = '#eab308';
-                        else if (emStatus.emergency_level === 'awas') color = '#ef4444';
-                    }
-
-                    const polygon = L.geoJSON(geoJsonData, {
-                        style: {
-                            color: color,
-                            weight: 2,
-                            fillColor: color,
-                            fillOpacity: 0.08
-                        }
-                    });
-
-                    polygon.bindPopup(`
-                        <div style="color: #0f172a; padding: 0.25rem;">
-                            <strong style="font-size: 0.95rem;">Desa ${v.name}</strong>
-                            <div style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0;">Kecamatan: ${v.district?.name}</div>
-                            <div style="font-size: 0.75rem; margin: 0.25rem 0;">Status: <span style="font-weight:700; color: ${color}; text-transform: uppercase;">${emStatus && emStatus.is_emergency ? emStatus.emergency_level : 'Normal'}</span></div>
-                            <div style="font-size: 0.75rem; color: #64748b;">${emStatus ? emStatus.description : 'Aman kondusif.'}</div>
-                        </div>
-                    `);
-
-                    polygonGroupRef.current.addLayer(polygon);
-                } catch (e) {
-                    console.error("Error parsing GeoJSON for village " + v.name, e);
-                }
-            }
+        drawAdminBoundaries(L, polygonGroupRef.current, adminBoundaries, {
+            levels: ['kelurahan'],
+            filter: (boundary) => !selectedDistrictName || normalizeName(boundary.parent_name) === normalizeName(selectedDistrictName),
+            fitMap: mapRef.current,
+            fitOptions: { padding: [24, 24], maxZoom: selectedDistrictName ? 13 : 11 },
         });
-    }, [selectedDistrict, villages]);
+    }, [selectedDistrict, districts, adminBoundaries]);
 
     // Redraw markers when filtered complaints change
     useEffect(() => {

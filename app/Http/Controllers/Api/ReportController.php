@@ -196,11 +196,14 @@ class ReportController extends Controller
     public function mapReports(Request $request)
     {
         $kecamatanId = $request->query('kecamatan_id');
+        $kelurahanId = $request->query('kelurahan_id');
         $year = $request->query('year');
+        $month = $request->query('month');
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
+        $idBencana = $request->query('id_bencana');
 
-        $query = LaporanBencana::with(['bencana', 'penanganan'])
+        $query = LaporanBencana::with(['user', 'bencana', 'kecamatan', 'kelurahan', 'penanganan', 'korban', 'dampakKerusakan'])
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where('latitude', '!=', 0);
@@ -209,11 +212,24 @@ class ReportController extends Controller
             $query->where('id_kecamatan', $kecamatanId);
         }
 
+        if ($kelurahanId) {
+            $query->where('id_kelurahan', $kelurahanId);
+        }
+
+        if ($idBencana) {
+            $query->where('id_bencana', $idBencana);
+        }
+
         if ($startDate && $endDate) {
             $query->whereDate('created_at', '>=', $startDate)
                   ->whereDate('created_at', '<=', $endDate);
-        } elseif ($year) {
-            $query->whereYear('created_at', $year);
+        } else {
+            if ($year) {
+                $query->whereYear('created_at', $year);
+            }
+            if ($month) {
+                $query->whereMonth('created_at', $month);
+            }
         }
 
         $reports = $query->orderBy('created_at', 'desc')->get();
@@ -272,6 +288,8 @@ class ReportController extends Controller
             'type' => $laporan->bencana ? $laporan->bencana->nama_bencana : 'Bencana Alam',
             'description' => $laporan->deskripsi,
             'location_name' => $laporan->alamat_detail ?? '',
+            'kecamatan_name' => $laporan->kecamatan->nama_kecamatan ?? '',
+            'kelurahan_name' => $laporan->kelurahan->nama_kelurahan ?? '',
             'latitude' => (float) $laporan->latitude,
             'longitude' => (float) $laporan->longitude,
             'status' => $laporan->status ?? 'Pending',

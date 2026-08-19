@@ -14,8 +14,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { dashboardService } from '../../api/services/dashboard';
 import { reportService } from '../../api/services/reports';
+import { masterDataService } from '../../api/services/masterData';
 import AnalyticsCharts from '../../Components/AnalyticsCharts';
 import { useAuth } from '../../AuthContext';
+import { drawAdminBoundaries, getResponseDataArray } from '../../lib/mapBoundaries';
 
 export default function Dashboard() {
     const { user } = useAuth();
@@ -24,22 +26,25 @@ export default function Dashboard() {
     const [data, setData] = useState({
         summary: { total: 0, pending: 0, handling: 0, resolved: 0 },
         stats: { banjir: 0, longsor: 0, kebakaran: 0, puting_beliung: 0, gempa: 0, lainnya: 0 },
-        complaints: []
+        complaints: [],
+        boundaries: []
     });
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
                 setLoading(true);
-                const [summaryRes, reportsRes] = await Promise.all([
+                const [summaryRes, reportsRes, boundariesRes] = await Promise.all([
                     dashboardService.getSummary(),
-                    reportService.getMapReports()
+                    reportService.getMapReports(),
+                    masterDataService.getBoundaries({ level: 'kecamatan' }).catch(() => ({ data: [] }))
                 ]);
 
                 setData({
                     summary: summaryRes.data?.summary || { total: 0, pending: 0, handling: 0, resolved: 0 },
                     stats: summaryRes.data?.stats || { banjir: 0, longsor: 0, kebakaran: 0, puting_beliung: 0, gempa: 0, lainnya: 0 },
-                    complaints: reportsRes.data || []
+                    complaints: getResponseDataArray(reportsRes),
+                    boundaries: getResponseDataArray(boundariesRes)
                 });
             } catch (err) {
                 console.error("Dashboard fetch error:", err);
@@ -66,6 +71,13 @@ export default function Dashboard() {
         }).addTo(map);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const boundaryGroup = L.layerGroup().addTo(map);
+        drawAdminBoundaries(L, boundaryGroup, data.boundaries, {
+            levels: ['kecamatan'],
+            fitMap: map,
+            fitOptions: { padding: [18, 18], maxZoom: 12 },
+        });
 
         data.complaints.forEach((c) => {
             let color = '#3b82f6';
@@ -95,7 +107,7 @@ export default function Dashboard() {
         return () => {
             map.remove();
         };
-    }, [data.complaints, loading, error]);
+    }, [data.complaints, data.boundaries, loading, error]);
 
     return (
         <Layout activePage="dashboard" title={`Pusdalops Kecamatan`}>

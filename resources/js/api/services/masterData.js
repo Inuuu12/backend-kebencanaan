@@ -5,8 +5,8 @@ export const masterDataService = {
         return apiClient.get('/bencana');
     },
 
-    getBoundaries: async () => {
-        return apiClient.get('/boundaries');
+    getBoundaries: async (params = {}) => {
+        return apiClient.get('/boundaries', { params });
     },
 
     getKabupaten: async () => {

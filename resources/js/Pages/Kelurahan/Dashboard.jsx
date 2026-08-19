@@ -11,15 +11,18 @@ import {
     Droplets,
     Activity,
     MapPin,
-    Loader2
+    Loader2,
+    Users
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { dashboardService } from '../../api/services/dashboard';
 import { reportService } from '../../api/services/reports';
 import { homeService } from '../../api/services/home';
+import { masterDataService } from '../../api/services/masterData';
 import AnalyticsCharts from '../../Components/AnalyticsCharts';
 import { useAuth } from '../../AuthContext';
+import { drawAdminBoundaries, getResponseDataArray } from '../../lib/mapBoundaries';
 
 export default function Dashboard() {
     const { user } = useAuth();
@@ -28,22 +31,25 @@ export default function Dashboard() {
     const [weather, setWeather] = useState(null);
     const [data, setData] = useState({
         summary: { total: 0, pending: 0, handling: 0, resolved: 0 },
-        complaints: []
+        complaints: [],
+        boundaries: []
     });
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
                 setLoading(true);
-                const [summaryRes, reportsRes, weatherRes] = await Promise.all([
+                const [summaryRes, reportsRes, weatherRes, boundariesRes] = await Promise.all([
                     dashboardService.getSummary(),
                     reportService.getMapReports(),
-                    homeService.getWeather().catch(() => null)
+                    homeService.getWeather().catch(() => null),
+                    masterDataService.getBoundaries({ level: 'kelurahan' }).catch(() => ({ data: [] }))
                 ]);
 
                 setData({
                     summary: summaryRes.data?.summary || { total: 0, pending: 0, handling: 0, resolved: 0 },
-                    complaints: reportsRes.data || []
+                    complaints: getResponseDataArray(reportsRes),
+                    boundaries: getResponseDataArray(boundariesRes)
                 });
                 if (weatherRes) setWeather(weatherRes);
             } catch (err) {
@@ -67,7 +73,8 @@ export default function Dashboard() {
         const centerLng = data.complaints.length > 0 ? data.complaints[0].longitude : 106.871;
 
         const map = L.map('kelurahan-map', {
-            zoomControl: false
+            zoomControl: false,
+            preferCanvas: true // Optimasi performa render
         }).setView([centerLat, centerLng], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
@@ -75,6 +82,13 @@ export default function Dashboard() {
         }).addTo(map);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const boundaryGroup = L.layerGroup().addTo(map);
+        drawAdminBoundaries(L, boundaryGroup, data.boundaries, {
+            levels: ['kelurahan'],
+            fitMap: data.complaints.length === 0 ? map : null,
+            fitOptions: { padding: [18, 18], maxZoom: 13 },
+        });
 
         data.complaints.forEach((c) => {
             let color = '#3b82f6';
@@ -104,7 +118,9 @@ export default function Dashboard() {
         return () => {
             map.remove();
         };
-    }, [data.complaints, loading, error]);
+    }, [data.complaints, data.boundaries, loading, error]);
+
+    const totalKorban = data.complaints.reduce((acc, curr) => acc + (Number(curr.jumlah_korban) || 0), 0);
 
     return (
         <Layout activePage="dashboard" title={`Dashboard Kelurahan`}>
@@ -191,6 +207,17 @@ export default function Dashboard() {
                     <div className="stat-card-info">
                         <span className="stat-card-value">{loading ? '-' : data.summary.resolved}</span>
                         <span className="stat-card-label">Laporan Selesai</span>
+                    </div>
+                </div>
+
+                <div className="panel-card stat-card relative overflow-hidden">
+                    {loading && <div className="absolute inset-0 bg-gray-100/50 dark:bg-gray-800/50 animate-pulse"></div>}
+                    <div className="stat-card-icon" style={{ color: 'var(--color-critical)' }}>
+                        <Users size={20} />
+                    </div>
+                    <div className="stat-card-info">
+                        <span className="stat-card-value text-red-400">{loading ? '-' : totalKorban}</span>
+                        <span className="stat-card-label">Total Korban</span>
                     </div>
                 </div>
             </div>

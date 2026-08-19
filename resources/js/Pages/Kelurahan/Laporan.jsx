@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../../Components/Layout';
+import { useAuth } from '../../AuthContext';
+import { reportService } from '../../api/services/reports';
+import { getResponseDataArray } from '../../lib/mapBoundaries';
+import { getAdminScopeLabel } from '../../lib/adminScope';
 import { 
     ResponsiveContainer, 
     PieChart, 
@@ -26,14 +30,51 @@ import {
 } from 'lucide-react';
 
 export default function Laporan() {
-    // Mock data for now until API is connected
-    const village = { name: 'Kelurahan Setempat' };
-    const complaints = [];
-    const statsByType = { banjir: 2, longsor: 1, kebakaran: 0 };
-    const statsByStatus = { pending: 1, handling: 1, resolved: 1 };
+    const { user } = useAuth();
+    const [complaints, setComplaints] = useState([]);
+    const [statsByType, setStatsByType] = useState({});
+    const [statsByStatus, setStatsByStatus] = useState({});
+    const [loading, setLoading] = useState(true);
+    
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState(0);
     const [showSuccess, setShowSuccess] = useState(false);
+
+    const adminLabel = getAdminScopeLabel(user);
+
+    useEffect(() => {
+        const fetchReports = async () => {
+            try {
+                setLoading(true);
+                const scopeFilters = {};
+                if (user?.id_kecamatan) scopeFilters.kecamatan_id = user.id_kecamatan;
+                if (user?.id_kelurahan) scopeFilters.kelurahan_id = user.id_kelurahan;
+                
+                const response = await reportService.getMapReports(scopeFilters);
+                const data = getResponseDataArray(response);
+                
+                const typeCounts = {};
+                const statusCounts = {};
+                
+                data.forEach(report => {
+                    const type = report.type || 'Lainnya';
+                    const status = report.status || 'Pending';
+                    typeCounts[type] = (typeCounts[type] || 0) + 1;
+                    statusCounts[status] = (statusCounts[status] || 0) + 1;
+                });
+                
+                setComplaints(data);
+                setStatsByType(typeCounts);
+                setStatsByStatus(statusCounts);
+            } catch (error) {
+                console.error("Gagal memuat laporan:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        if (user) fetchReports();
+    }, [user]);
 
     // Format data for Recharts
     const typeChartData = Object.keys(statsByType).map((key) => ({
@@ -63,9 +104,9 @@ export default function Laporan() {
                         setShowSuccess(true);
                         // Trigger a mock file download
                         const element = document.createElement("a");
-                        const file = new Blob(["Simulasi ekspor laporan bencana Kelurahan " + village.name], {type: 'text/plain'});
+                        const file = new Blob(["Simulasi ekspor laporan bencana " + adminLabel], {type: 'text/plain'});
                         element.href = URL.createObjectURL(file);
-                        element.download = `laporan_bencana_${village.name.toLowerCase()}_${new Date().toISOString().slice(0,10)}.${type}`;
+                        element.download = `laporan_bencana_${adminLabel.replace(/[\s/]/g, '_').toLowerCase()}_${new Date().toISOString().slice(0,10)}.${type}`;
                         document.body.appendChild(element);
                         element.click();
                         document.body.removeChild(element);
@@ -78,7 +119,7 @@ export default function Laporan() {
     };
 
     return (
-        <Layout activePage="recap" title={`Laporan & Statistik Desa ${village.name}`}>
+        <Layout activePage="recap" title={`Laporan & Statistik ${adminLabel}`}>
             
             {/* Simulated Export Action Banners */}
             {isExporting && (
@@ -237,7 +278,7 @@ export default function Laporan() {
                                 <tr>
                                     <th>Tanggal</th>
                                     <th>Jenis Bencana</th>
-                                    <th>Prioritas</th>
+                                    <th>Korban Terdampak</th>
                                     <th>Pelapor</th>
                                     <th>Alamat Kejadian</th>
                                     <th style={{ textAlign: 'center' }}>Status</th>
@@ -247,27 +288,24 @@ export default function Laporan() {
                                 {complaints.map((c) => (
                                     <tr key={c.id}>
                                         <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                            {new Date(c.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                            {new Date(c.report_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                                         </td>
                                         <td style={{ fontWeight: '600', textTransform: 'capitalize' }}>
-                                            {c.disaster_type.replace('_', ' ')}
+                                            {c.type}
                                         </td>
                                         <td>
-                                            {c.priority === 'low' && <span className="badge normal">Rendah</span>}
-                                            {c.priority === 'medium' && <span className="badge warning">Sedang</span>}
-                                            {c.priority === 'high' && <span className="badge info">Tinggi</span>}
-                                            {c.priority === 'critical' && <span className="badge critical">Kritis</span>}
+                                            <span className="badge warning">{c.jumlah_korban || 0} orang</span>
                                         </td>
-                                        <td style={{ fontSize: '0.85rem' }}>{c.citizen_name}</td>
+                                        <td style={{ fontSize: '0.85rem' }}>{c.reporter_name || 'Warga'}</td>
                                         <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {c.address}
+                                            {c.location_name}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
-                                            {c.status === 'pending' && <span className="badge warning">Menunggu</span>}
-                                            {c.status === 'verified' && <span className="badge info">Terverifikasi</span>}
-                                            {c.status === 'handling' && <span className="badge info" style={{ background: 'var(--color-primary-light)' }}>Penanganan</span>}
-                                            {c.status === 'resolved' && <span className="badge success">Selesai</span>}
-                                            {c.status === 'rejected' && <span className="badge critical">Ditolak</span>}
+                                            {c.status.toLowerCase() === 'pending' && <span className="badge warning">Menunggu</span>}
+                                            {c.status.toLowerCase() === 'verified' && <span className="badge info">Terverifikasi</span>}
+                                            {c.status.toLowerCase() === 'handling' && <span className="badge info" style={{ background: 'var(--color-primary-light)' }}>Penanganan</span>}
+                                            {c.status.toLowerCase() === 'resolved' && <span className="badge success">Selesai</span>}
+                                            {c.status.toLowerCase() === 'rejected' && <span className="badge critical">Ditolak</span>}
                                         </td>
                                     </tr>
                                 ))}

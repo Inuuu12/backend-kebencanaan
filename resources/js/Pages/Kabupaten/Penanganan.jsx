@@ -31,11 +31,11 @@ export default function Penanganan({
         { id: 5, item_name: 'Air Mineral', quantity: 20, unit: 'Galon', status: 'approved', complaint: { village_id: 5, citizen_name: 'Warga RT 03', village: { name: 'Babakan Madang', district_id: 5, district: { name: 'Babakan Madang' } } } },
     ], 
     handlings = [
-        { id: 1, officer_name: 'Tim BPBD Alpha', progress_percentage: 100, action_taken: 'Evakuasi warga terdampak banjir selesai dilakukan.', logistics_notes: 'Tersalurkan 50 paket sembako', created_at: '2026-08-10', complaint: { village_id: 1, village: { name: 'Cibinong', district_id: 1, district: { name: 'Cibinong' } } } },
-        { id: 2, officer_name: 'Tim SAR Gabungan', progress_percentage: 60, action_taken: 'Pembersihan material longsor menggunakan alat berat.', logistics_notes: 'Butuh tambahan terpal', created_at: '2026-08-09', complaint: { village_id: 4, village: { name: 'Cisarua', district_id: 4, district: { name: 'Cisarua' } } } },
-        { id: 3, officer_name: 'Relawan PMI', progress_percentage: 80, action_taken: 'Pendirian tenda pengungsian darurat.', logistics_notes: 'Kondisi obat-obatan menipis', created_at: '2026-08-08', complaint: { village_id: 2, village: { name: 'Bojong Gede', district_id: 2, district: { name: 'Bojong Gede' } } } },
-        { id: 4, officer_name: 'Dinas Pemadam Kebakaran', progress_percentage: 100, action_taken: 'Pemadaman api dan pendinginan area selesai.', logistics_notes: 'Aman', created_at: '2026-08-07', complaint: { village_id: 3, village: { name: 'Cileungsi', district_id: 3, district: { name: 'Cileungsi' } } } },
-        { id: 5, officer_name: 'Tim BPBD Bravo', progress_percentage: 40, action_taken: 'Assesment awal dampak angin puting beliung.', logistics_notes: 'Dalam pendataan', created_at: '2026-08-10', complaint: { village_id: 5, village: { name: 'Babakan Madang', district_id: 5, district: { name: 'Babakan Madang' } } } },
+        { id: 1, officer_name: 'Tim BPBD Alpha', action_taken: 'Evakuasi warga terdampak banjir selesai dilakukan.', logistics_notes: 'Tersalurkan 50 paket sembako', created_at: '2026-08-10', complaint: { village_id: 1, village: { name: 'Cibinong', district_id: 1, district: { name: 'Cibinong' } } } },
+        { id: 2, officer_name: 'Tim SAR Gabungan', action_taken: 'Pembersihan material longsor menggunakan alat berat.', logistics_notes: 'Butuh tambahan terpal', created_at: '2026-08-09', complaint: { village_id: 4, village: { name: 'Cisarua', district_id: 4, district: { name: 'Cisarua' } } } },
+        { id: 3, officer_name: 'Relawan PMI', action_taken: 'Pendirian tenda pengungsian darurat.', logistics_notes: 'Kondisi obat-obatan menipis', created_at: '2026-08-08', complaint: { village_id: 2, village: { name: 'Bojong Gede', district_id: 2, district: { name: 'Bojong Gede' } } } },
+        { id: 4, officer_name: 'Dinas Pemadam Kebakaran', action_taken: 'Pemadaman api dan pendinginan area selesai.', logistics_notes: 'Aman', created_at: '2026-08-07', complaint: { village_id: 3, village: { name: 'Cileungsi', district_id: 3, district: { name: 'Cileungsi' } } } },
+        { id: 5, officer_name: 'Tim BPBD Bravo', action_taken: 'Assesment awal dampak angin puting beliung.', logistics_notes: 'Dalam pendataan', created_at: '2026-08-10', complaint: { village_id: 5, village: { name: 'Babakan Madang', district_id: 5, district: { name: 'Babakan Madang' } } } },
     ] 
 }) {
     // Filter states
@@ -308,7 +308,7 @@ export default function Penanganan({
                 </div>
             </div>
 
-            {/* Bottom Content Grid: Logistics Table & Progres Updates */}
+            {/* Bottom Content Grid: Logistics Table & Field Updates */}
             <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '1.5rem' }}>
                 {/* Logistics List */}
                 <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -377,12 +377,12 @@ export default function Penanganan({
                 <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem', margin: 0 }}>
                         <Activity size={18} className="color-primary" />
-                        Progres Update Penanganan Lapangan
+                        Update Penanganan Lapangan
                     </h3>
 
                     {filteredHandlings.length === 0 ? (
                         <div style={{ padding: '3rem 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-                            Belum ada progres penanganan terdokumentasi untuk wilayah terpilih.
+                            Belum ada update penanganan terdokumentasi untuk wilayah terpilih.
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -406,16 +406,6 @@ export default function Penanganan({
                                                     Kel. {vilName}, Kec. {distName}
                                                 </div>
                                             </div>
-                                            <span style={{ 
-                                                fontSize: '0.75rem', 
-                                                fontWeight: 700, 
-                                                color: hand.progress_percentage === 100 ? '#10b981' : '#3b82f6',
-                                                background: hand.progress_percentage === 100 ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)',
-                                                padding: '0.2rem 0.5rem',
-                                                borderRadius: '4px'
-                                            }}>
-                                                {hand.progress_percentage}% Progres
-                                            </span>
                                         </div>
                                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.4rem 0' }}>
                                             {hand.action_taken}

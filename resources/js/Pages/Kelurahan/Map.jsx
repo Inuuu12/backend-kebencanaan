@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Layout from '../../Components/Layout';
+import { masterDataService } from '../../api/services/masterData';
+import { drawAdminBoundaries, getResponseDataArray, normalizeName } from '../../lib/mapBoundaries';
 import { Layers, MapPin, Eye, Filter, RefreshCw } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -10,6 +12,14 @@ export default function Map({ village, complaints }) {
     const [selectedPriority, setSelectedPriority] = useState('all');
     const mapRef = useRef(null);
     const layerGroupRef = useRef(null);
+    const polygonGroupRef = useRef(null);
+    const [adminBoundaries, setAdminBoundaries] = useState([]);
+
+    useEffect(() => {
+        masterDataService.getBoundaries({ level: 'kelurahan' })
+            .then((res) => setAdminBoundaries(getResponseDataArray(res)))
+            .catch((err) => console.error('Gagal memuat batas wilayah:', err));
+    }, []);
 
     // Filter complaints based on state
     const filteredComplaints = complaints.filter(c => {
@@ -40,22 +50,7 @@ export default function Map({ village, complaints }) {
 
         mapRef.current = map;
 
-        // Add Village Polygon
-        if (village.geojson) {
-            try {
-                const geoJsonData = JSON.parse(village.geojson);
-                L.geoJSON(geoJsonData, {
-                    style: {
-                        color: '#3b82f6',
-                        weight: 2,
-                        fillColor: '#3b82f6',
-                        fillOpacity: 0.05
-                    }
-                }).addTo(map);
-            } catch (e) {
-                console.error("Error parsing GeoJSON", e);
-            }
-        }
+        polygonGroupRef.current = L.layerGroup().addTo(map);
 
         // Layer Group for markers so we can clear and update them dynamically
         const layerGroup = L.layerGroup().addTo(map);
@@ -65,6 +60,17 @@ export default function Map({ village, complaints }) {
             map.remove();
         };
     }, [village]);
+
+    useEffect(() => {
+        if (!mapRef.current || !polygonGroupRef.current) return;
+
+        drawAdminBoundaries(L, polygonGroupRef.current, adminBoundaries, {
+            levels: ['kelurahan'],
+            filter: (boundary) => normalizeName(boundary.name) === normalizeName(village.name),
+            fitMap: mapRef.current,
+            fitOptions: { padding: [24, 24], maxZoom: 14 },
+        });
+    }, [adminBoundaries, village]);
 
     // Redraw markers when filters change
     useEffect(() => {
