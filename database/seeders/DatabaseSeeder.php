@@ -19,8 +19,8 @@ class DatabaseSeeder extends Seeder
 
         // Kabupaten (Superadmin)
         User::factory()->create([
-            'nama' => 'Admin Kabupaten',
-            'email' => 'kabupaten@example.com',
+            'nama' => 'Test User',
+            'email' => 'test@example.com',
             'role' => 'superadmin',
         ]);
 
@@ -36,6 +36,11 @@ class DatabaseSeeder extends Seeder
             'nama' => 'Admin Kelurahan',
             'email' => 'kelurahan@example.com',
             'role' => 'admin_kelurahan',
+        ]);
+
+        $this->call([
+            DisasterDataSeeder::class,
+            RegionalAndSupportSeeder::class,
         ]);
     }
 }
