@@ -14,5 +14,8 @@ class Berita extends Model
         'isi',
         'gambar',
         'sumber',
+        'url_tautan',
+        'author',
+        'publisher'
     ];
 }

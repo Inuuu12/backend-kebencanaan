@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
     PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend
 } from 'recharts';
-import { Activity, Building2 } from 'lucide-react';
+import { Activity, Building2, MapPin } from 'lucide-react';
 
 const COLORS = {
     banjir: '#06b6d4',
@@ -23,7 +23,17 @@ const CHART_LABELS = {
     lainnya: 'Lainnya'
 };
 
-export default function AnalyticsCharts({ stats, complaints }) {
+const METRIC_OPTIONS = [
+    { value: 'total_kejadian', label: 'Total Kejadian Bencana' },
+    { value: 'korban_meninggal', label: 'Total Korban Meninggal' },
+    { value: 'korban_luka', label: 'Total Korban Luka' },
+    { value: 'korban_mengungsi', label: 'Total Warga Mengungsi' },
+    { value: 'unit_rusak', label: 'Total Bangunan Rusak' },
+    { value: 'estimasi_kerugian', label: 'Estimasi Kerugian (Rp)' },
+];
+
+export default function AnalyticsCharts({ stats, complaints, regionalStats = [] }) {
+    const [selectedMetric, setSelectedMetric] = useState('total_kejadian');
     // Prepare Data for Pie Chart
     const pieData = useMemo(() => {
         if (!stats) return [];
@@ -65,10 +75,90 @@ export default function AnalyticsCharts({ stats, complaints }) {
         });
     }, [complaints]);
 
+    // Prepare Data for Regional Bar Chart
+    const regionalData = useMemo(() => {
+        if (!regionalStats || regionalStats.length === 0) return [];
+        return regionalStats.map(r => ({
+            name: r.nama_wilayah,
+            value: Number(r[selectedMetric]) || 0
+        })).sort((a, b) => b.value - a.value).slice(0, 15); // Ambil top 15 agar tidak terlalu padat
+    }, [regionalStats, selectedMetric]);
+
+    const formatYAxis = (value) => {
+        if (selectedMetric === 'estimasi_kerugian') {
+            if (value >= 1000000000) return `Rp${(value / 1000000000).toFixed(1)}M`;
+            if (value >= 1000000) return `Rp${(value / 1000000).toFixed(0)}Jt`;
+            return `Rp${value}`;
+        }
+        return value;
+    };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flexGrow: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flexGrow: 1, width: '100%' }}>
             
-            {/* Type Distribution */}
+            {/* Dynamic Regional Stats Chart */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col gap-4 w-full">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100 m-0">
+                        <MapPin size={20} className="text-orange-500" />
+                        Rekapitulasi Data Berdasarkan Wilayah
+                    </h3>
+                    <select 
+                        value={selectedMetric}
+                        onChange={(e) => setSelectedMetric(e.target.value)}
+                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 min-w-[200px]"
+                    >
+                        {METRIC_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div style={{ height: '350px', width: '100%', marginTop: '10px' }}>
+                    {regionalData.some(d => d.value > 0) ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={regionalData} margin={{ top: 20, right: 20, left: 20, bottom: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.5} />
+                                <XAxis 
+                                    dataKey="name" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fontSize: 11, fill: '#6b7280' }} 
+                                    dy={10} 
+                                    angle={-45}
+                                    textAnchor="end"
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fontSize: 11, fill: '#6b7280' }} 
+                                    tickFormatter={formatYAxis}
+                                />
+                                <RechartsTooltip 
+                                    cursor={{ fill: 'rgba(249, 115, 22, 0.05)' }}
+                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                    formatter={(value) => [
+                                        selectedMetric === 'estimasi_kerugian' ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value) : value, 
+                                        METRIC_OPTIONS.find(o => o.value === selectedMetric)?.label
+                                    ]}
+                                />
+                                <Bar dataKey="value" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                                    {regionalData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#f97316' : '#fb923c'} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                            <Activity size={32} className="opacity-40" />
+                            <span className="text-sm font-medium">Belum ada data untuk metrik ini</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
             <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', margin: 0 }}>
                     <Building2 size={18} className="color-primary" />
@@ -148,6 +238,7 @@ export default function AnalyticsCharts({ stats, complaints }) {
                 </div>
             </div>
 
+            </div>
         </div>
     );
 }

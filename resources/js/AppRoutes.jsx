@@ -14,6 +14,8 @@ import Login from './Pages/Auth/Login';
 const KabupatenDashboard = lazy(() => import('./Pages/Kabupaten/Dashboard'));
 const KabupatenPenanganan = lazy(() => import('./Pages/Kabupaten/Penanganan'));
 const KabupatenBerita = lazy(() => import('./Pages/Kabupaten/Berita'));
+const KabupatenRekap = lazy(() => import('./Pages/Kabupaten/RekapData'));
+const KabupatenUsers = lazy(() => import('./Pages/Kabupaten/Users'));
 const KabupatenProfile = lazy(() => import('./Pages/Kabupaten/Profile'));
 
 const KecamatanDashboard = lazy(() => import('./Pages/Kecamatan/Dashboard'));
@@ -79,6 +81,8 @@ export default function AppRoutes() {
                         <PrivateRoute allowedRoles={['superadmin']}>
                             <Routes>
                                 <Route path="/" element={<KabupatenDashboard />} />
+                                <Route path="/rekap-wilayah" element={<KabupatenRekap />} />
+                                <Route path="/pengguna" element={<KabupatenUsers />} />
                                 <Route path="/aduan" element={<ReportList />} />
                                 <Route path="/aduan/buat" element={<ReportCreate />} />
                                 <Route path="/aduan/:id" element={<ReportDetail />} />

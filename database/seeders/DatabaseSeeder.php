@@ -18,25 +18,37 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         // Kabupaten (Superadmin)
-        User::factory()->create([
-            'nama' => 'Test User',
-            'email' => 'test@example.com',
-            'role' => 'superadmin',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'nama' => 'Test User',
+                'role' => 'superadmin',
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'is_active' => true,
+            ]
+        );
 
         // Kecamatan
-        User::factory()->create([
-            'nama' => 'Admin Kecamatan',
-            'email' => 'kecamatan@example.com',
-            'role' => 'admin_kecamatan',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'kecamatan@example.com'],
+            [
+                'nama' => 'Admin Kecamatan',
+                'role' => 'admin_kecamatan',
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'is_active' => true,
+            ]
+        );
 
         // Kelurahan
-        User::factory()->create([
-            'nama' => 'Admin Kelurahan',
-            'email' => 'kelurahan@example.com',
-            'role' => 'admin_kelurahan',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'kelurahan@example.com'],
+            [
+                'nama' => 'Admin Kelurahan',
+                'role' => 'admin_kelurahan',
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'is_active' => true,
+            ]
+        );
 
         $this->call([
             DisasterDataSeeder::class,

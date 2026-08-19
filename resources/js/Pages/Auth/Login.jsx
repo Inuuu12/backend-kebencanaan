@@ -44,10 +44,12 @@ export default function Login() {
                 <title>Masuk ke Sistem - SIKAB</title>
             
                 <div className="login-header">
-                    <div className="login-logo">
-                        <FlameKindling size={24} />
+                    <div className="login-logo flex justify-center mb-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                            <FlameKindling size={26} />
+                        </div>
                     </div>
-                    <h2 className="login-title">SIKAB BOGOR</h2>
+                    <h2 className="login-title font-extrabold text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">SIKAB BOGOR</h2>
                     <p className="login-subtitle">Sistem Informasi Kebencanaan Kabupaten Bogor</p>
                 </div>
 

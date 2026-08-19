@@ -3,11 +3,12 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ReportController;
-use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\BeritaController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\MasterDataController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,8 +36,8 @@ Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
 Route::get('/reports/map', [ReportController::class, 'mapReports']);
 
 // Berita & Buletin
-Route::get('/news', [NewsController::class, 'index']);
-Route::get('/news/{id}', [NewsController::class, 'show']);
+Route::get('/news', [BeritaController::class, 'index']);
+Route::get('/news/{id}', [BeritaController::class, 'show']);
 
 // Master Data Wilayah & Referensi
 Route::get('/bencana', [MasterDataController::class, 'bencana']);
@@ -60,8 +61,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Notifikasi personal (terfilter per pengguna)
     Route::get('/notifications', [NotificationController::class, 'index']);
     // Manajemen Berita (Admin)
-    Route::post('/admin/news', [NewsController::class, 'store']);
-    Route::post('/admin/news/scrape', [NewsController::class, 'scrape']);
+    Route::post('/admin/news', [BeritaController::class, 'store']);
+    Route::put('/admin/news/{id}', [BeritaController::class, 'update']);
+    Route::delete('/admin/news/{id}', [BeritaController::class, 'destroy']);
+    Route::post('/admin/news/scrape', [BeritaController::class, 'scrape']);
+
+    // Manajemen Pengguna (Super Admin)
+    Route::get('/admin/users', [UserController::class, 'index']);
+    Route::put('/admin/users/{id}', [UserController::class, 'update']);
+    Route::delete('/admin/users/{id}', [UserController::class, 'destroy']);
 });
 
 // PENTING: Wildcard /reports/{id} HARUS didaftarkan PALING TERAKHIR dari semua

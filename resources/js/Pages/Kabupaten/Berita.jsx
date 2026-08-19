@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../../Components/Layout';
-import { Plus, Newspaper, Link as LinkIcon, AlertTriangle, CheckCircle, Search, Calendar, FileText, Image, MapPin } from 'lucide-react';
+import { Plus, Newspaper, Link as LinkIcon, AlertTriangle, CheckCircle, Search, Calendar, FileText, Image, MapPin, Edit, Trash2 } from 'lucide-react';
 import { newsService } from '../../api/services/news';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,14 +17,18 @@ export default function Berita() {
     const [scrapeError, setScrapeError] = useState(null);
     const [scrapeSuccess, setScrapeSuccess] = useState(false);
     
-    // Form state
     const [formData, setFormData] = useState({
         judul: '',
         isi: '',
-        gambar: '',
-        sumber: ''
+        gambar: '', // This will hold the URL string
+        sumber: '',
+        url_tautan: '',
+        author: '',
+        publisher: ''
     });
+    const [imageFile, setImageFile] = useState(null); // This will hold the local file
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editingId, setEditingId] = useState(null);
 
     useEffect(() => {
         fetchNews();
@@ -53,12 +57,14 @@ export default function Berita() {
             const res = await newsService.scrapeUrl(scrapeUrl);
             const data = res.data;
             
-            // Populate form data
             setFormData({
                 judul: data.title || '',
                 isi: data.description || '',
                 gambar: data.image_url || '',
-                sumber: data.source || ''
+                sumber: data.source || '',
+                url_tautan: data.url_tautan || '',
+                author: data.author || '',
+                publisher: data.source || ''
             });
             
             setScrapeSuccess(true);
@@ -79,9 +85,28 @@ export default function Berita() {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await newsService.create(formData);
-            setIsModalOpen(false);
-            setFormData({ judul: '', isi: '', gambar: '', sumber: '' });
+            const data = new FormData();
+            data.append('judul', formData.judul);
+            data.append('isi', formData.isi);
+            if (formData.sumber) data.append('sumber', formData.sumber);
+            if (formData.url_tautan) data.append('url_tautan', formData.url_tautan);
+            if (formData.author) data.append('author', formData.author);
+            if (formData.publisher) data.append('publisher', formData.publisher);
+
+            if (imageFile) {
+                data.append('gambar', imageFile);
+            } else if (formData.gambar) {
+                data.append('gambar', formData.gambar);
+            }
+
+            if (editingId) {
+                await newsService.update(editingId, data);
+            } else {
+                await newsService.create(data);
+            }
+            closeModal();
+            fetchNews(); // Refresh list
+            setImageFile(null);
             fetchNews(); // Refresh list
         } catch (err) {
             console.error(err);
@@ -89,6 +114,40 @@ export default function Berita() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleEdit = (news) => {
+        setEditingId(news.id);
+        setFormData({
+            judul: news.title || '',
+            isi: news.description || '',
+            gambar: news.image_url || '',
+            sumber: news.source_name || '',
+            url_tautan: news.url_tautan || '',
+            author: news.author || '',
+            publisher: news.publisher || ''
+        });
+        setImageFile(null);
+        setActiveTab('manual');
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Apakah Anda yakin ingin menghapus berita ini?")) return;
+        try {
+            await newsService.delete(id);
+            fetchNews();
+        } catch (err) {
+            console.error(err);
+            alert('Gagal menghapus berita.');
+        }
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setEditingId(null);
+        setFormData({ judul: '', isi: '', gambar: '', sumber: '', url_tautan: '', author: '', publisher: '' });
+        setImageFile(null);
     };
 
     return (
@@ -99,13 +158,13 @@ export default function Berita() {
                         <Newspaper size={28} className="text-blue-500" />
                         Kelola Berita & Informasi
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Buat atau tarik berita dari portal web untuk ditampilkan kepada publik.
-                    </p>
                 </div>
                 
                 <button 
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                        closeModal(); // Reset state
+                        setIsModalOpen(true);
+                    }}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-500/30"
                 >
                     <Plus size={18} />
@@ -159,9 +218,19 @@ export default function Berita() {
                                 <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 mb-4 flex-grow">
                                     {news.description}
                                 </p>
-                                <div className="flex items-center text-[10px] text-slate-400 gap-1 border-t border-slate-100 dark:border-slate-800 pt-3">
-                                    <Calendar size={12} />
-                                    <span>{new Date(news.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3">
+                                    <div className="flex items-center text-[10px] text-slate-400 gap-1">
+                                        <Calendar size={12} />
+                                        <span>{new Date(news.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => handleEdit(news)} className="text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded transition-colors" title="Edit">
+                                            <Edit size={14} />
+                                        </button>
+                                        <button onClick={() => handleDelete(news.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-1.5 rounded transition-colors" title="Hapus">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -178,7 +247,7 @@ export default function Berita() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="fixed inset-0 z-[600] bg-black/40 backdrop-blur-sm"
-                            onClick={() => setIsModalOpen(false)}
+                            onClick={closeModal}
                         />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -191,10 +260,10 @@ export default function Berita() {
                                 <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
                                     <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                                         <Plus size={20} className="text-blue-500" />
-                                        Tambah Berita Baru
+                                        {editingId ? "Edit Berita" : "Tambah Berita Baru"}
                                     </h2>
                                     <button 
-                                        onClick={() => setIsModalOpen(false)}
+                                        onClick={closeModal}
                                         className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 p-1.5 rounded-lg transition-colors"
                                     >
                                         <Plus size={20} className="rotate-45" />
@@ -209,13 +278,15 @@ export default function Berita() {
                                         <FileText size={16} />
                                         Tulis Manual
                                     </button>
-                                    <button
-                                        onClick={() => setActiveTab('link')}
-                                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'link' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                                    >
-                                        <LinkIcon size={16} />
-                                        Dari Tautan
-                                    </button>
+                                    {!editingId && (
+                                        <button
+                                            onClick={() => setActiveTab('link')}
+                                            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'link' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                        >
+                                            <LinkIcon size={16} />
+                                            Dari Tautan
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="p-4 sm:p-6 overflow-y-auto">
@@ -281,7 +352,16 @@ export default function Berita() {
                                             </div>
 
                                             <div>
-                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cuplikan Isi / Deskripsi</label>
+                                                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs border border-blue-100 dark:border-blue-900/50">
+                                                    <strong className="block mb-1">Catatan Format Teks Khusus:</strong>
+                                                    <ul className="list-disc pl-4 space-y-1">
+                                                        <li>Gunakan kode <code>[tab]</code> untuk membuat kalimat pertama menjorok ke dalam (indent).</li>
+                                                        <li>Gunakan kode <code>[enter]</code> atau pindah baris biasa untuk membuat paragraf baru.</li>
+                                                        <li>Apit teks dengan dua bintang <code>**teks**</code> untuk <strong>huruf tebal (bold)</strong>.</li>
+                                                        <li>Apit teks dengan satu bintang <code>*teks*</code> untuk <em>huruf miring (italic)</em>.</li>
+                                                    </ul>
+                                                </div>
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Isi Berita Lengkap</label>
                                                 <textarea 
                                                     required
                                                     rows={4}
@@ -294,14 +374,26 @@ export default function Berita() {
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <div>
-                                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">URL Gambar (Opsional)</label>
-                                                    <input 
-                                                        type="url" 
-                                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-200 outline-none"
-                                                        value={formData.gambar}
-                                                        onChange={(e) => setFormData({...formData, gambar: e.target.value})}
-                                                        placeholder="https://..."
-                                                    />
+                                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Gambar Berita (Opsional)</label>
+                                                    <div className="flex flex-col gap-2">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*"
+                                                            onChange={(e) => setImageFile(e.target.files[0])}
+                                                            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-400"
+                                                        />
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-slate-400">Atau gunakan URL:</span>
+                                                            <input 
+                                                                type="url" 
+                                                                className="flex-grow bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-200 outline-none text-xs"
+                                                                value={formData.gambar}
+                                                                onChange={(e) => setFormData({...formData, gambar: e.target.value})}
+                                                                placeholder="https://..."
+                                                                disabled={!!imageFile}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Sumber (Opsional)</label>
@@ -321,7 +413,7 @@ export default function Berita() {
                                 <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
                                     <button 
                                         type="button"
-                                        onClick={() => setIsModalOpen(false)}
+                                        onClick={closeModal}
                                         className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
                                     >
                                         Batal

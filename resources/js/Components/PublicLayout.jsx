@@ -89,9 +89,14 @@ export default function PublicLayout({ children, mapMode = false, headerActions 
             {/* Header */}
             <header className={`${mapMode ? 'absolute top-0 left-0 right-0 bg-white/60 dark:bg-[#0a0a0a]/60 shadow-sm' : 'sticky top-0 bg-white/70 dark:bg-[#0a0a0a]/70'} z-[500] backdrop-blur-md border-b border-[#19140035] dark:border-[#3E3E3A] transition-colors`}>
                 <div className="container mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
-                    <div className="flex items-center gap-2 text-primary shrink-0">
-                        <FlameKindling size={24} className="text-[#FF750F]" />
-                        <span className="font-bold text-lg tracking-wide hidden sm:block">SIKAB BOGOR</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-orange-500 to-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                            <FlameKindling size={22} className="text-white" />
+                        </div>
+                        <div className="flex flex-col justify-center">
+                            <span className="font-bold text-lg tracking-wide hidden sm:block">SIKAB BOGOR</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 -mt-1 hidden sm:block font-medium">Sistem Informasi Kebencanaan Kabupaten Bogor</span>
+                        </div>
                     </div>
                     
                     <nav className="flex items-center gap-2 sm:gap-6 text-sm font-medium shrink-0">
@@ -182,9 +187,29 @@ export default function PublicLayout({ children, mapMode = false, headerActions 
 
             {/* Main Content */}
             <main className={mapMode ? 'h-full pt-16 relative' : 'flex-grow'}>
-                {!mapMode && location.pathname !== '/' && (
+                {!mapMode && location.pathname === '/news' && (
                     <div className="container mx-auto px-6 pt-6 pb-2">
-                        <button onClick={() => navigate(location.pathname.startsWith('/news/') && location.pathname !== '/news' ? '/news' : -1)} className="flex items-center gap-3 text-slate-600 dark:text-slate-300 hover:text-[#FF750F] dark:hover:text-[#FF750F] transition-colors group w-max">
+                        <button onClick={() => navigate('/')} className="flex items-center gap-3 text-slate-600 dark:text-slate-300 hover:text-[#FF750F] dark:hover:text-[#FF750F] transition-colors group w-max">
+                            <div className="bg-slate-100 dark:bg-slate-800 group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 p-2 rounded-full transition-colors">
+                                <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                            </div>
+                            <span className="font-bold text-sm tracking-wide">Kembali ke Beranda</span>
+                        </button>
+                    </div>
+                )}
+                {!mapMode && location.pathname.startsWith('/news/') && location.pathname !== '/news' && (
+                    <div className="container mx-auto px-6 pt-6 pb-2">
+                        <button onClick={() => navigate('/news')} className="flex items-center gap-3 text-slate-600 dark:text-slate-300 hover:text-[#FF750F] dark:hover:text-[#FF750F] transition-colors group w-max">
+                            <div className="bg-slate-100 dark:bg-slate-800 group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 p-2 rounded-full transition-colors">
+                                <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                            </div>
+                            <span className="font-bold text-sm tracking-wide">Kembali ke Daftar Berita</span>
+                        </button>
+                    </div>
+                )}
+                {!mapMode && !location.pathname.startsWith('/news') && location.pathname !== '/' && (
+                    <div className="container mx-auto px-6 pt-6 pb-2">
+                        <button onClick={() => navigate(-1)} className="flex items-center gap-3 text-slate-600 dark:text-slate-300 hover:text-[#FF750F] dark:hover:text-[#FF750F] transition-colors group w-max">
                             <div className="bg-slate-100 dark:bg-slate-800 group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 p-2 rounded-full transition-colors">
                                 <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
                             </div>

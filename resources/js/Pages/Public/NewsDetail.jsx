@@ -2,13 +2,44 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import PublicLayout from '../../Components/PublicLayout';
 import { newsService } from '../../api/services/news';
-import { Calendar, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Calendar, ArrowLeft, AlertTriangle, ExternalLink, User, Globe } from 'lucide-react';
 
 export default function NewsDetail() {
     const { id } = useParams();
     const [article, setArticle] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    }[tag]));
+
+    const renderFormattedText = (text) => {
+        if (!text) return <p className="text-gray-500 italic">Konten berita tidak tersedia.</p>;
+        
+        let processed = text.replace(/\[enter\]/gi, '\n');
+        const paragraphs = processed.split('\n').filter(p => p.trim() !== '');
+
+        return paragraphs.map((paragraph, idx) => {
+            let htmlText = escapeHTML(paragraph);
+            
+            htmlText = htmlText.replace(/\[tab\]/gi, '<span class="ml-6 sm:ml-8 inline-block"></span>');
+            htmlText = htmlText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            htmlText = htmlText.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            return (
+                <p 
+                    key={idx} 
+                    className="mb-4 text-gray-700 dark:text-gray-300 leading-relaxed text-justify" 
+                    dangerouslySetInnerHTML={{ __html: htmlText }} 
+                />
+            );
+        });
+    };
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -66,6 +97,33 @@ export default function NewsDetail() {
                             {article.title}
                         </h1>
 
+                        {article.url_tautan && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 mb-8 gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex flex-wrap items-center gap-4 text-sm">
+                                    {article.author && (
+                                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                                            <User size={14} className="text-blue-500" />
+                                            <span>{article.author}</span>
+                                        </div>
+                                    )}
+                                    {article.publisher && (
+                                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                                            <Globe size={14} />
+                                            <span>{article.publisher}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <a 
+                                    href={article.url_tautan} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shrink-0 text-sm shadow-sm"
+                                >
+                                    Baca di Sumber Asli <ExternalLink size={16} />
+                                </a>
+                            </div>
+                        )}
+
                         {article.image_url && (
                             <div className="rounded-xl overflow-hidden mb-10 shadow-lg border border-[#19140015] dark:border-[#3E3E3A]">
                                 <img 
@@ -81,16 +139,7 @@ export default function NewsDetail() {
                         )}
 
                         <div className="prose prose-lg dark:prose-invert max-w-none prose-orange">
-                            {/* Assuming the content is plain text for now, but usually it might be HTML */}
-                            {article.description ? (
-                                article.description.split('\n').map((paragraph, idx) => (
-                                    <p key={idx} className="mb-4 text-gray-700 dark:text-gray-300 leading-relaxed">
-                                        {paragraph}
-                                    </p>
-                                ))
-                            ) : (
-                                <p className="text-gray-500 italic">Konten berita tidak tersedia.</p>
-                            )}
+                            {renderFormattedText(article.description)}
                         </div>
                     </article>
                 ) : null}

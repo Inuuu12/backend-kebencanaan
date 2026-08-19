@@ -74,7 +74,11 @@ class ReportController extends Controller
             }
         }
 
-        $totalKorban = (int)($request->korban_meninggal ?? 0) + (int)($request->korban_luka_berat ?? 0) + (int)($request->korban_luka_ringan ?? 0) + (int)($request->korban_hilang ?? 0);
+        $victimDeaths = (int)($request->victim_deaths ?? $request->korban_meninggal ?? 0);
+        $victimInjured = (int)($request->victim_injured ?? $request->korban_luka_berat ?? 0);
+        $victimMissing = (int)($request->victim_missing ?? $request->korban_hilang ?? 0);
+        $totalKorban = $victimDeaths + $victimInjured + $victimMissing + (int)($request->korban_luka_ringan ?? 0);
+        $imageUrl = !empty($imageUrls) ? $imageUrls[0] : null;
 
         $laporan = LaporanBencana::create([
             'id_user' => $userId,

@@ -7,7 +7,7 @@ import { masterDataService } from '../../api/services/masterData';
 import { drawAdminBoundaries, getResponseDataArray } from '../../lib/mapBoundaries';
 import { getAdminScopeFilters, getAdminScopeLabel } from '../../lib/adminScope';
 import { homeService } from '../../api/services/home';
-import { Filter, Layers, MapPin, AlertTriangle, RefreshCw, X, ArrowRight, Download, Table2 } from 'lucide-react';
+import { Filter, Layers, MapPin, AlertTriangle, RefreshCw, X, ArrowRight, Download, Table2, Info, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -40,11 +40,19 @@ export default function DisasterMap() {
     const [selectedType, setSelectedType] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('');
     const [selectedReport, setSelectedReport] = useState(null);
-    const [isRecapOpen, setIsRecapOpen] = useState(true);
+    const [selectedKecamatan, setSelectedKecamatan] = useState('');
+    const [selectedKelurahan, setSelectedKelurahan] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isLegendOpen, setIsLegendOpen] = useState(false);
 
     const mapRef = useRef(null);
     const markersGroupRef = useRef(null);
     const boundariesGroupRef = useRef(null);
+    const fittedAreaKeyRef = useRef('');
+
+    const normalizeName = (name) => name?.toLowerCase().replace(/^(kecamatan|kelurahan|desa)\s+/i, '').trim();
 
     // Load data
     const fetchMapData = async () => {
@@ -55,7 +63,7 @@ export default function DisasterMap() {
             
             const [reportsRes, boundariesRes, weatherRes, kecamatanRes, kelurahanRes] = await Promise.all([
                 reportService.getMapReports(scopeFilters),
-                masterDataService.getBoundaries(isKabupaten ? {} : { level: 'kelurahan' }).catch(() => ({ data: { data: [] } })),
+                masterDataService.getBoundaries({ level: 'kabupaten,kecamatan,kelurahan' }).catch(() => ({ data: { data: [] } })),
                 homeService.getWeather().catch(() => null),
                 masterDataService.getKecamatan().catch(() => []),
                 masterDataService.getKelurahan(kelurahanScopeId).catch(() => [])
@@ -82,166 +90,61 @@ export default function DisasterMap() {
         return reports.filter(r => {
             const matchType = !selectedType || r.type === selectedType;
             const matchStatus = !selectedStatus || r.status.toLowerCase() === selectedStatus.toLowerCase();
-            return matchType && matchStatus;
+            const loc = normalizeName(r.location_name) || '';
+            const matchKecamatan = !selectedKecamatan || 
+                normalizeName(r.kecamatan_name) === normalizeName(selectedKecamatan) || 
+                loc.includes(normalizeName(selectedKecamatan));
+            const matchKelurahan = !selectedKelurahan || 
+                normalizeName(r.kelurahan_name) === normalizeName(selectedKelurahan) || 
+                loc.includes(normalizeName(selectedKelurahan));
+            
+            return matchType && matchStatus && matchKecamatan && matchKelurahan;
         });
-    }, [reports, selectedType, selectedStatus]);
+    }, [reports, selectedType, selectedStatus, selectedKecamatan, selectedKelurahan]);
 
-    const recapRows = useMemo(() => {
-        const kecamatanById = new Map(
-            kecamatanList.map((item) => [String(item.id_kecamatan || item.id), item])
-        );
-        const scopedKelurahan = kelurahanList.filter((item) => {
-            const kecamatanId = String(item.id_kecamatan || '');
-            const kelurahanId = String(item.id_kelurahan || item.id || '');
-
-            if (!isKabupaten && user?.id_kecamatan && kecamatanId !== String(user.id_kecamatan)) {
-                return false;
-            }
-
-            if (!isKabupaten && !isKecamatan && user?.id_kelurahan && kelurahanId !== String(user.id_kelurahan)) {
-                return false;
-            }
-
-            return true;
+    const availableKelurahan = useMemo(() => {
+        if (!selectedKecamatan) return kelurahanList;
+        return kelurahanList.filter(k => {
+            const kec = kecamatanList.find(x => String(x.id_kecamatan) === String(k.id_kecamatan));
+            return normalizeName(kec?.nama_kecamatan) === normalizeName(selectedKecamatan) || 
+                   normalizeName(k.nama_kecamatan) === normalizeName(selectedKecamatan);
         });
-        const rowsByKelurahan = new Map();
+    }, [selectedKecamatan, kelurahanList, kecamatanList]);
 
-        scopedKelurahan.forEach((kelurahan) => {
-            const kecamatan = kecamatanById.get(String(kelurahan.id_kecamatan || ''));
-            const key = String(kelurahan.id_kelurahan || kelurahan.id);
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        }
 
-            rowsByKelurahan.set(key, {
-                idKecamatan: kelurahan.id_kecamatan,
-                idKelurahan: kelurahan.id_kelurahan || kelurahan.id,
-                kecamatan: kecamatan?.nama_kecamatan || kelurahan.nama_kecamatan || user?.nama_kecamatan || '-',
-                kelurahan: kelurahan.nama_kelurahan || kelurahan.nama_desa || user?.nama_kelurahan || '-',
-                total: 0,
-                korban: 0,
-                meninggal: 0,
-                lukaBerat: 0,
-                lukaRingan: 0,
-                hilang: 0,
-                mengungsi: 0,
-                jenisKerusakan: new Set(),
-                rusakRingan: 0,
-                rusakSedang: 0,
-                rusakBerat: 0,
-            });
-        });
-
-        if (rowsByKelurahan.size === 0 && user?.id_kelurahan) {
-            rowsByKelurahan.set(String(user.id_kelurahan), {
-                idKecamatan: user.id_kecamatan,
-                idKelurahan: user.id_kelurahan,
-                kecamatan: user.nama_kecamatan || '-',
-                kelurahan: user.nama_kelurahan || '-',
-                total: 0,
-                korban: 0,
-                meninggal: 0,
-                lukaBerat: 0,
-                lukaRingan: 0,
-                hilang: 0,
-                mengungsi: 0,
-                jenisKerusakan: new Set(),
-                rusakRingan: 0,
-                rusakSedang: 0,
-                rusakBerat: 0,
+        const q = searchQuery.toLowerCase();
+        const results = [];
+        
+        if (isKabupaten) {
+            kecamatanList.forEach(kec => {
+                if (kec.nama_kecamatan.toLowerCase().includes(q)) {
+                    results.push({ type: 'Kecamatan', id_kecamatan: kec.id_kecamatan, nama_kecamatan: kec.nama_kecamatan });
+                }
             });
         }
 
-        filteredReports.forEach((report) => {
-            const key = String(report.id_kelurahan || '');
-            const current = rowsByKelurahan.get(key);
-            if (!current) return;
-
-            const korban = report.korban_breakdown || {};
-            const kerusakan = report.kerusakan_breakdown || {};
-            const meninggal = Number(korban.meninggal || 0);
-            const lukaBerat = Number(korban.luka_berat || 0);
-            const lukaRingan = Number(korban.luka_ringan || 0);
-            const hilang = Number(korban.hilang || 0);
-            const korbanDetail = meninggal + lukaBerat + lukaRingan + hilang;
-
-            current.total += 1;
-            current.korban += korbanDetail || Number(report.jumlah_korban || 0);
-            current.meninggal += meninggal;
-            current.lukaBerat += lukaBerat;
-            current.lukaRingan += lukaRingan;
-            current.hilang += hilang;
-            current.mengungsi += Number(korban.mengungsi || 0);
-            (report.kerusakan_jenis || []).forEach((jenis) => {
-                if (jenis) current.jenisKerusakan.add(jenis);
-            });
-            current.rusakRingan += Number(kerusakan.ringan || 0);
-            current.rusakSedang += Number(kerusakan.sedang || 0);
-            current.rusakBerat += Number(kerusakan.berat || 0);
+        kelurahanList.forEach(kel => {
+            const match = kel.nama_kelurahan?.toLowerCase().includes(q) || kel.nama_desa?.toLowerCase().includes(q);
+            if (match) {
+                const kec = kecamatanList.find(x => String(x.id_kecamatan) === String(kel.id_kecamatan));
+                if (!isKabupaten && !isKecamatan && user?.id_kelurahan && String(kel.id_kelurahan || kel.id) !== String(user.id_kelurahan)) return;
+                results.push({ 
+                    type: 'Desa', 
+                    id_kecamatan: kel.id_kecamatan, 
+                    id_kelurahan: kel.id_kelurahan || kel.id,
+                    nama_kelurahan: kel.nama_kelurahan || kel.nama_desa,
+                    parentName: kec?.nama_kecamatan || ''
+                });
+            }
         });
 
-        return Array.from(rowsByKelurahan.values()).map((row) => ({
-            ...row,
-            jenisKerusakanText: Array.from(row.jenisKerusakan).join(', ') || '-',
-        })).sort((a, b) => {
-            return `${a.kecamatan} ${a.kelurahan}`.localeCompare(`${b.kecamatan} ${b.kelurahan}`);
-        });
-    }, [filteredReports, kecamatanList, kelurahanList, isKabupaten, isKecamatan, user]);
-
-    const recapTotals = useMemo(() => {
-        return recapRows.reduce((acc, row) => {
-            acc.total += row.total;
-            acc.korban += row.korban;
-            acc.meninggal += row.meninggal;
-            acc.lukaBerat += row.lukaBerat;
-            acc.lukaRingan += row.lukaRingan;
-            acc.hilang += row.hilang;
-            acc.mengungsi += row.mengungsi;
-            acc.rusakRingan += row.rusakRingan;
-            acc.rusakSedang += row.rusakSedang;
-            acc.rusakBerat += row.rusakBerat;
-            return acc;
-        }, {
-            total: 0,
-            korban: 0,
-            meninggal: 0,
-            lukaBerat: 0,
-            lukaRingan: 0,
-            hilang: 0,
-            mengungsi: 0,
-            rusakRingan: 0,
-            rusakSedang: 0,
-            rusakBerat: 0,
-        });
-    }, [recapRows]);
-
-    const downloadRecapCsv = () => {
-        const headers = ['Kecamatan', 'Desa/Kelurahan', 'Total Aduan', 'Total Korban', 'Meninggal', 'Luka Berat', 'Luka Ringan', 'Hilang', 'Mengungsi', 'Jenis Kerusakan', 'Rusak Ringan', 'Rusak Sedang', 'Rusak Berat'];
-        const rows = recapRows.map((row) => [
-            row.kecamatan,
-            row.kelurahan,
-            row.total,
-            row.korban,
-            row.meninggal,
-            row.lukaBerat,
-            row.lukaRingan,
-            row.hilang,
-            row.mengungsi,
-            row.jenisKerusakanText,
-            row.rusakRingan,
-            row.rusakSedang,
-            row.rusakBerat,
-        ]);
-
-        const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-        const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
-        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `rekap-peta-wilayah-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
+        setSearchResults(results.slice(0, 10));
+    }, [searchQuery, kecamatanList, kelurahanList, isKabupaten, isKecamatan, user]);
 
     // Init Map
     useEffect(() => {
@@ -273,13 +176,103 @@ export default function DisasterMap() {
 
     // Draw Boundaries
     useEffect(() => {
-        if (!boundariesGroupRef.current || !mapRef.current) return;
+        if (!boundariesGroupRef.current || !mapRef.current || !boundaries.length) return;
         boundariesGroupRef.current.clearLayers();
 
+        const showKelurahanLabels = Boolean(selectedKecamatan) || mapRef.current.getZoom() >= 13;
+        
+        // Cari nama wilayah user
+        const userKecName = !isKabupaten && user?.id_kecamatan 
+            ? kecamatanList.find(k => k.id_kecamatan == user.id_kecamatan)?.nama_kecamatan 
+            : null;
+        const userKelName = !isKabupaten && !isKecamatan && user?.id_kelurahan 
+            ? kelurahanList.find(k => (k.id_kelurahan || k.id) == user.id_kelurahan)?.nama_kelurahan || 
+              kelurahanList.find(k => (k.id_kelurahan || k.id) == user.id_kelurahan)?.nama_desa
+            : null;
+
+        const shouldFitSelectedArea = Boolean(selectedKecamatan || selectedKelurahan);
+        const selectedAreaKey = selectedKelurahan
+            ? `kelurahan:${normalizeName(selectedKecamatan)}:${normalizeName(selectedKelurahan)}`
+            : selectedKecamatan
+                ? `kecamatan:${normalizeName(selectedKecamatan)}`
+                : '';
+                
+        const initialAreaKey = isKabupaten 
+            ? 'kabupaten' 
+            : isKecamatan 
+                ? `kecamatan:${normalizeName(userKecName)}`
+                : `kelurahan:${normalizeName(userKecName)}:${normalizeName(userKelName)}`;
+                
+        const effectiveAreaKey = selectedAreaKey || initialAreaKey;
+        const shouldFitNow = Boolean(effectiveAreaKey && fittedAreaKeyRef.current !== effectiveAreaKey);
+
         drawAdminBoundaries(L, boundariesGroupRef.current, boundaries, {
-            levels: isKabupaten ? ['kabupaten', 'kecamatan'] : ['kelurahan'],
+            levels: showKelurahanLabels || selectedKelurahan || (!isKabupaten && !isKecamatan) ? ['kabupaten', 'kecamatan', 'kelurahan'] : ['kabupaten', 'kecamatan'],
+            filter: (boundary) => {
+                // Filter spesifik per role admin
+                if (!isKabupaten) {
+                    if (isKecamatan) {
+                        if (boundary.level === 'kabupaten') return false; 
+                        if (boundary.level === 'kecamatan') return normalizeName(boundary.name) === normalizeName(userKecName);
+                        if (boundary.level === 'kelurahan') return normalizeName(boundary.parent_name) === normalizeName(userKecName);
+                    } else {
+                        // Kelurahan admin
+                        if (boundary.level === 'kabupaten') return false;
+                        if (boundary.level === 'kecamatan') return false;
+                        if (boundary.level === 'kelurahan') return normalizeName(boundary.name) === normalizeName(userKelName) && normalizeName(boundary.parent_name) === normalizeName(userKecName);
+                    }
+                }
+
+                // Untuk Kabupaten Admin, tampilkan semua (tapi kelurahan hanya jika dipilih/zoom dekat)
+                if (boundary.level !== 'kelurahan') return true;
+                return normalizeName(boundary.parent_name) === normalizeName(selectedKecamatan);
+            },
+            styleForBoundary: (boundary, baseStyle) => {
+                const isSelectedKecamatan = selectedKecamatan &&
+                    boundary.level === 'kecamatan' &&
+                    normalizeName(boundary.name) === normalizeName(selectedKecamatan);
+                const isSelectedKelurahan = selectedKelurahan &&
+                    boundary.level === 'kelurahan' &&
+                    normalizeName(boundary.name) === normalizeName(selectedKelurahan) &&
+                    normalizeName(boundary.parent_name) === normalizeName(selectedKecamatan);
+
+                if (isSelectedKelurahan) {
+                    return { ...baseStyle, color: '#ec4899', fillColor: '#ec4899', weight: 4, fillOpacity: 0.24, opacity: 1 };
+                }
+                if (isSelectedKecamatan) {
+                    return { ...baseStyle, color: '#f97316', fillColor: '#f97316', weight: 4, fillOpacity: 0.18, opacity: 1 };
+                }
+                return baseStyle;
+            },
+            boundsFilter: (boundary) => {
+                if (selectedKelurahan) {
+                    return boundary.level === 'kelurahan' &&
+                        normalizeName(boundary.name) === normalizeName(selectedKelurahan) &&
+                        normalizeName(boundary.parent_name) === normalizeName(selectedKecamatan);
+                }
+                if (selectedKecamatan) {
+                    return boundary.level === 'kecamatan' &&
+                        normalizeName(boundary.name) === normalizeName(selectedKecamatan);
+                }
+                
+                // Jika tidak ada filter yang dipilih, zoom sesuai role
+                if (!isKabupaten) {
+                    if (isKecamatan) {
+                        return boundary.level === 'kecamatan' && normalizeName(boundary.name) === normalizeName(userKecName);
+                    } else {
+                        return boundary.level === 'kelurahan' && normalizeName(boundary.name) === normalizeName(userKelName) && normalizeName(boundary.parent_name) === normalizeName(userKecName);
+                    }
+                }
+                
+                return boundary.level === 'kabupaten';
+            },
+            fitMap: shouldFitNow ? mapRef.current : null,
+            fitOptions: { padding: [52, 52], maxZoom: (selectedKelurahan || (!isKabupaten && !isKecamatan)) ? 14 : 12 },
         });
-    }, [boundaries, isKabupaten]);
+
+        if (effectiveAreaKey) fittedAreaKeyRef.current = effectiveAreaKey;
+        else fittedAreaKeyRef.current = '';
+    }, [boundaries, selectedKecamatan, selectedKelurahan, isKabupaten, isKecamatan, user, kecamatanList, kelurahanList]);
 
     // Draw Markers
     useEffect(() => {
@@ -288,14 +281,26 @@ export default function DisasterMap() {
 
         filteredReports.forEach(r => {
             if (r.latitude && r.longitude) {
-                const markerColor = r.status.toLowerCase() === 'pending' ? 'orange' :
-                                    r.status.toLowerCase() === 'handling' ? 'blue' : 'green';
+                const n = r.type.toLowerCase();
+                let emoji = '⚠️';
+                if (n === 'banjir') emoji = '🌊';
+                else if (n === 'tsunami') emoji = '🌊';
+                else if (n === 'kebakaran') emoji = '🔥';
+                else if (n === 'angin puting beliung') emoji = '🌪️';
+                else if (n === 'gempa bumi') emoji = '🫨';
+                else if (n === 'tanah longsor') emoji = '⛰️';
+                else if (n === 'gunung meletus') emoji = '🌋';
+                else if (n === 'kekeringan') emoji = '☀️';
+
+                const markerColor = r.status.toLowerCase() === 'pending' ? '#f97316' : // orange-500
+                                    r.status.toLowerCase() === 'handling' ? '#3b82f6' : // blue-500
+                                    '#10b981'; // emerald-500
 
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
-                    html: `<div style="background-color: ${markerColor}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
-                    iconSize: [14, 14],
-                    iconAnchor: [7, 7]
+                    html: `<div style="background-color: ${markerColor}; width: 26px; height: 26px; border-radius: 50%; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; font-size: 13px;">${emoji}</div>`,
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13]
                 });
 
                 const marker = L.marker([r.latitude, r.longitude], { icon: customIcon });
@@ -320,165 +325,226 @@ export default function DisasterMap() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
-                className="relative w-full h-full flex flex-col"
+                className="relative w-full h-full flex flex-col overflow-hidden"
             >
-                {/* Filters */}
-                <div className="absolute top-4 left-4 z-[400] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-4 flex flex-wrap gap-4 items-center">
-                    <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-bold border-r border-slate-200 dark:border-slate-800 pr-4">
-                            <Filter size={18} className="text-orange-500" />
-                            Filter Peta
-                        </div>
-                        
-                        <select 
-                            className="bg-transparent border border-slate-300 dark:border-slate-700 rounded-lg py-2 px-4 text-sm focus:ring-2 focus:ring-orange-500 outline-none text-slate-700 dark:text-slate-200 transition-all hover:border-orange-500/50"
-                            value={selectedType}
-                            onChange={(e) => setSelectedType(e.target.value)}
-                        >
-                            <option value="">Semua Bencana</option>
-                            {uniqueTypes.map(t => (
-                                <option key={t} value={t}>{t}</option>
-                            ))}
-                        </select>
-
-                        <select 
-                            className="bg-transparent border border-slate-300 dark:border-slate-700 rounded-lg py-2 px-4 text-sm focus:ring-2 focus:ring-orange-500 outline-none text-slate-700 dark:text-slate-200 transition-all hover:border-orange-500/50"
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
-                        >
-                            <option value="">Semua Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="handling">Dalam Penanganan</option>
-                            <option value="resolved">Selesai</option>
-                        </select>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <div className="text-sm text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
-                            {getAdminScopeLabel(user)} | <strong className="text-slate-900 dark:text-white">{filteredReports.length}</strong> titik
-                        </div>
-                        <button
-                            onClick={() => setIsRecapOpen((value) => !value)}
-                            className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-colors"
-                            title="Tampilkan rekap tabel"
-                        >
-                            <Table2 size={18} />
-                        </button>
-                        <motion.button 
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={fetchMapData}
-                            className="p-2 text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-xl transition-colors border border-transparent hover:border-orange-500/20 shadow-sm"
-                            title="Refresh Data"
-                        >
-                            <RefreshCw size={18} />
-                        </motion.button>
-                    </div>
-                </div>
-
+                {/* Draggable/Sidebar Filter Panel */}
                 <AnimatePresence>
-                    {isRecapOpen && (
+                    {isFilterOpen && (
                         <motion.div
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 16 }}
-                            className="absolute bottom-6 right-6 z-[410] w-[min(1080px,calc(100vw-2rem))] max-h-[62vh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+                            initial={{ opacity: 0, x: -50 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -50 }}
+                            className="absolute z-[600] top-4 left-4 bg-slate-50/95 dark:bg-[#111]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 w-[320px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] flex flex-col pointer-events-auto"
                         >
-                            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
-                                <div>
-                                    <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                        <Table2 size={18} className="text-blue-500" />
-                                        Rekap Data Wilayah
-                                    </h3>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                        {getAdminScopeLabel(user)} | {recapRows.length} desa/kelurahan | {recapTotals.total} aduan | {recapTotals.korban} korban terdampak
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={downloadRecapCsv}
-                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
-                                    >
-                                        <Download size={14} />
-                                        Excel
-                                    </button>
-                                    <button
-                                        onClick={() => setIsRecapOpen(false)}
-                                        className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
+                                    <Filter size={16} className="text-teal-500"/> Filter Peta
+                                </h3>
+                                <button onClick={() => setIsFilterOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 transition-colors"><X size={18} /></button>
                             </div>
-                            <div className="overflow-auto max-h-[calc(62vh-88px)]">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                        <tr>
-                                            <th className="px-4 py-3 font-bold min-w-36">Kecamatan</th>
-                                            <th className="px-4 py-3 font-bold min-w-40">Desa/Kelurahan</th>
-                                            <th className="px-4 py-3 font-bold text-right">Aduan</th>
-                                            <th className="px-4 py-3 font-bold text-right">Korban</th>
-                                            <th className="px-4 py-3 font-bold text-right">Meninggal</th>
-                                            <th className="px-4 py-3 font-bold text-right">Luka Berat</th>
-                                            <th className="px-4 py-3 font-bold text-right">Luka Ringan</th>
-                                            <th className="px-4 py-3 font-bold text-right">Hilang</th>
-                                            <th className="px-4 py-3 font-bold text-right">Mengungsi</th>
-                                            <th className="px-4 py-3 font-bold min-w-48">Jenis Kerusakan</th>
-                                            <th className="px-4 py-3 font-bold text-right">Rusak Ringan</th>
-                                            <th className="px-4 py-3 font-bold text-right">Rusak Sedang</th>
-                                            <th className="px-4 py-3 font-bold text-right">Rusak Berat</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                                        {recapRows.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="13" className="px-4 py-8 text-center text-slate-500">
-                                                    Tidak ada data rekap untuk filter ini.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            recapRows.map((row) => (
-                                                <tr key={`${row.idKecamatan}-${row.idKelurahan}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/70">
-                                                    <td className="px-4 py-3 font-semibold">{row.kecamatan}</td>
-                                                    <td className="px-4 py-3">{row.kelurahan}</td>
-                                                    <td className="px-4 py-3 text-right">{row.total}</td>
-                                                    <td className="px-4 py-3 text-right font-bold text-red-600 dark:text-red-400">{row.korban}</td>
-                                                    <td className="px-4 py-3 text-right">{row.meninggal}</td>
-                                                    <td className="px-4 py-3 text-right">{row.lukaBerat}</td>
-                                                    <td className="px-4 py-3 text-right">{row.lukaRingan}</td>
-                                                    <td className="px-4 py-3 text-right">{row.hilang}</td>
-                                                    <td className="px-4 py-3 text-right">{row.mengungsi}</td>
-                                                    <td className="px-4 py-3">{row.jenisKerusakanText}</td>
-                                                    <td className="px-4 py-3 text-right">{row.rusakRingan}</td>
-                                                    <td className="px-4 py-3 text-right">{row.rusakSedang}</td>
-                                                    <td className="px-4 py-3 text-right">{row.rusakBerat}</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                    {recapRows.length > 0 && (
-                                        <tfoot className="sticky bottom-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-extrabold">
-                                            <tr>
-                                                <td className="px-4 py-3" colSpan="2">Total</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.total}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.korban}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.meninggal}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.lukaBerat}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.lukaRingan}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.hilang}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.mengungsi}</td>
-                                                <td className="px-4 py-3"></td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.rusakRingan}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.rusakSedang}</td>
-                                                <td className="px-4 py-3 text-right">{recapTotals.rusakBerat}</td>
-                                            </tr>
-                                        </tfoot>
+                            
+                            <div className="space-y-4 overflow-y-auto px-1 max-h-[60vh] pb-4">
+                                {/* Pencarian Cepat */}
+                                <div className="relative">
+                                    <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Cari Wilayah</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ketik nama kecamatan / desa..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 p-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-orange-500"
+                                        />
+                                        <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                            <Search size={14} className="text-slate-400" />
+                                        </div>
+                                    </div>
+                                    {searchResults.length > 0 && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                            {searchResults.map((item, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0 flex flex-col"
+                                                    onClick={() => {
+                                                        if (item.type === 'Kecamatan') {
+                                                            setSelectedKecamatan(item.nama_kecamatan);
+                                                            setSelectedKelurahan('');
+                                                        } else {
+                                                            setSelectedKecamatan(item.parentName);
+                                                            setSelectedKelurahan(item.nama_kelurahan);
+                                                        }
+                                                        setSearchQuery('');
+                                                        setSearchResults([]);
+                                                    }}
+                                                >
+                                                    <span className="font-semibold">{item.type === 'Kecamatan' ? item.nama_kecamatan : item.nama_kelurahan}</span>
+                                                    <span className="text-[10px] text-slate-400">{item.type === 'Desa' ? `Desa di Kec. ${item.parentName}` : 'Kecamatan'}</span>
+                                                </button>
+                                            ))}
+                                        </div>
                                     )}
-                                </table>
+                                </div>
+
+                                {/* Filter Bencana */}
+                                <div>
+                                    <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Jenis Bencana</label>
+                                    <select 
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                                        value={selectedType}
+                                        onChange={(e) => setSelectedType(e.target.value)}
+                                    >
+                                        <option value="">Semua Bencana</option>
+                                        {uniqueTypes.map(t => (
+                                            <option key={t} value={t}>{t}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filter Status */}
+                                <div>
+                                    <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Status Penanganan</label>
+                                    <select 
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                                        value={selectedStatus}
+                                        onChange={(e) => setSelectedStatus(e.target.value)}
+                                    >
+                                        <option value="">Semua Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="handling">Dalam Penanganan</option>
+                                        <option value="resolved">Selesai</option>
+                                    </select>
+                                </div>
+
+                                {/* Filter Kecamatan */}
+                                <div>
+                                    <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Kecamatan</label>
+                                    <select
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all disabled:opacity-50"
+                                        value={selectedKecamatan}
+                                        onChange={(e) => {
+                                            setSelectedKecamatan(e.target.value);
+                                            setSelectedKelurahan('');
+                                        }}
+                                        disabled={!isKabupaten}
+                                    >
+                                        <option value="">Semua Kecamatan</option>
+                                        {kecamatanList.map(k => (
+                                            <option key={k.id_kecamatan} value={k.nama_kecamatan}>{k.nama_kecamatan}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filter Kelurahan */}
+                                <div>
+                                    <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Desa / Kelurahan</label>
+                                    <select
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all disabled:opacity-50"
+                                        value={selectedKelurahan}
+                                        onChange={(e) => setSelectedKelurahan(e.target.value)}
+                                        disabled={(!isKabupaten && !isKecamatan) || !selectedKecamatan}
+                                    >
+                                        <option value="">{selectedKecamatan ? 'Semua Desa / Kelurahan' : 'Pilih Kecamatan Dulu'}</option>
+                                        {availableKelurahan.map(k => (
+                                            <option key={k.id_kelurahan || k.id} value={k.nama_kelurahan || k.nama_desa}>
+                                                {k.nama_kelurahan || k.nama_desa}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                {/* Draggable/Sidebar Legend Panel */}
+                <AnimatePresence>
+                    {isLegendOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 50 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 50 }}
+                            className="absolute z-[600] top-20 right-4 bg-slate-50/95 dark:bg-[#111]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 w-[280px] max-w-[calc(100vw-2rem)] flex flex-col pointer-events-auto transition-all duration-300"
+                        >
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
+                                    <Info size={16} className="text-blue-500"/> Legenda
+                                </h3>
+                                <button onClick={() => setIsLegendOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 transition-colors"><X size={18} /></button>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Simbol Bencana</h4>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-700 dark:text-slate-300">
+                                        <div className="flex items-center gap-2"><span className="text-sm">🌊</span> Banjir/Tsunami</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">🔥</span> Kebakaran</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">🌪️</span> Puting Beliung</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">🫨</span> Gempa Bumi</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">⛰️</span> Longsor</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">🌋</span> Gn. Meletus</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">☀️</span> Kekeringan</div>
+                                        <div className="flex items-center gap-2"><span className="text-sm">⚠️</span> Lainnya</div>
+                                    </div>
+                                </div>
+                                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                                    <h4 className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Warna Status</h4>
+                                    <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full bg-[#f97316] border border-white"></div> Pending
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full bg-[#3b82f6] border border-white"></div> Dalam Penanganan
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full bg-[#10b981] border border-white"></div> Selesai
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Floating Buttons if closed */}
+                <div className="absolute top-4 left-4 z-[400] flex items-center gap-2 pointer-events-none">
+                    {!isFilterOpen && (
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            onClick={() => setIsFilterOpen(true)}
+                            className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl px-4 py-3 rounded-full shadow-lg border border-slate-200 dark:border-slate-800 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-slate-700 dark:text-slate-200 font-bold text-sm pointer-events-auto"
+                        >
+                            <Filter size={18} className="text-teal-500" /> Filter Peta
+                        </motion.button>
+                    )}
+
+                    {!isLegendOpen && (
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            onClick={() => setIsLegendOpen(true)}
+                            className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl px-4 py-3 rounded-full shadow-lg border border-slate-200 dark:border-slate-800 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-slate-700 dark:text-slate-200 font-bold text-sm pointer-events-auto ${isFilterOpen ? 'ml-[340px]' : ''}`}
+                        >
+                            <Info size={18} className="text-blue-500" /> Legenda
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* Info Bar at top right */}
+                <div className="absolute top-4 right-4 z-[400] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-2 pl-4 flex items-center gap-4 pointer-events-auto">
+                    <div className="text-sm text-slate-600 dark:text-slate-300 font-medium">
+                        {getAdminScopeLabel(user)} | <strong className="text-slate-900 dark:text-white">{filteredReports.length}</strong> titik
+                    </div>
+                    <motion.button 
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={fetchMapData}
+                        className="p-2 text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-xl transition-colors border border-transparent hover:border-orange-500/20 shadow-sm"
+                        title="Refresh Data"
+                    >
+                        <RefreshCw size={18} />
+                    </motion.button>
+                </div>
 
                 {/* Map Container */}
                 <div className="absolute inset-0 z-0 bg-slate-100 dark:bg-slate-900 overflow-hidden">
@@ -544,41 +610,6 @@ export default function DisasterMap() {
                         )}
                     </AnimatePresence>
 
-
-                    {/* Legend Overlay */}
-                    <motion.div 
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700/50 p-5 w-56 group-hover:border-orange-500/30 transition-colors"
-                    >
-                        <h4 className="font-extrabold text-sm mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                            <Layers size={16} className="text-orange-500" /> Legenda
-                        </h4>
-                        <div className="space-y-3 text-xs font-medium text-slate-600 dark:text-slate-400">
-                            <div className="flex items-center gap-3">
-                                <div className="w-3.5 h-3.5 rounded-full bg-orange-500 border-2 border-white dark:border-slate-900 shadow-md"></div>
-                                <span>Pending / Baru</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white dark:border-slate-900 shadow-md"></div>
-                                <span>Dalam Penanganan</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white dark:border-slate-900 shadow-md"></div>
-                                <span>Selesai Resolusi</span>
-                            </div>
-                            <div className="my-3 border-t border-slate-200 dark:border-slate-800"></div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-4 h-4 bg-red-500/20 border-2 border-red-500 rounded-sm"></div>
-                                <span>Zona Risiko Tinggi</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-4 h-4 bg-orange-500/20 border-2 border-orange-500 rounded-sm"></div>
-                                <span>Zona Risiko Sedang</span>
-                            </div>
-                        </div>
-                    </motion.div>
                 </div>
             </motion.div>
         </Layout>

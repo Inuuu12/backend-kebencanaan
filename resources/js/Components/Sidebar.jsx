@@ -10,6 +10,7 @@ import {
     BarChart3, 
     FileSpreadsheet, 
     User, 
+    Users,
     LogOut,
     FlameKindling,
     Activity,
@@ -34,10 +35,12 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
         if (user.role === 'superadmin') {
             return [
                 { id: 'dashboard', name: 'Beranda', url: '/dashboard/kabupaten', icon: LayoutDashboard },
+                { id: 'rekap-wilayah', name: 'Rekap Data Wilayah', url: '/dashboard/kabupaten/rekap-wilayah', icon: FileSpreadsheet },
                 { id: 'complaints', name: 'Data Terverifikasi', url: '/dashboard/kabupaten/aduan', icon: FileText },
                 { id: 'berita', name: 'Kelola Berita', url: '/dashboard/kabupaten/berita', icon: Newspaper },
+                { id: 'pengguna', name: 'Kelola Pengguna', url: '/dashboard/kabupaten/pengguna', icon: Users },
                 { id: 'map', name: 'Peta Wilayah', url: '/dashboard/kabupaten/peta', icon: MapIcon },
-                { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kabupaten/penanganan', icon: Activity },
+                // { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kabupaten/penanganan', icon: Activity },
                 { id: 'profile', name: 'Profil Operator', url: '/dashboard/kabupaten/profil', icon: User },
             ];
         } else if (user.role === 'admin_kecamatan') {
@@ -45,7 +48,7 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
                 { id: 'dashboard', name: 'Beranda', url: '/dashboard/kecamatan', icon: LayoutDashboard },
                 { id: 'complaints', name: 'Aduan Warga', url: '/dashboard/kecamatan/aduan', icon: FileText },
                 { id: 'map', name: 'Peta Wilayah', url: '/dashboard/kecamatan/peta', icon: MapIcon },
-                { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kecamatan/penanganan', icon: Activity },
+                // { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kecamatan/penanganan', icon: Activity },
                 { id: 'recap', name: 'Rekap Kelurahan', url: '/dashboard/kecamatan/rekap', icon: FileSpreadsheet },
                 { id: 'statistics', name: 'Statistik Bencana', url: '/dashboard/kecamatan/statistik', icon: BarChart3 },
                 { id: 'profile', name: 'Profil Operator', url: '/dashboard/kecamatan/profil', icon: User },
@@ -55,7 +58,7 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
                 { id: 'dashboard', name: 'Beranda', url: '/dashboard/kelurahan', icon: LayoutDashboard },
                 { id: 'complaints', name: 'Aduan Warga', url: '/dashboard/kelurahan/aduan', icon: FileText },
                 { id: 'map', name: 'Peta Desa', url: '/dashboard/kelurahan/peta', icon: MapIcon },
-                { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kelurahan/penanganan', icon: Activity },
+                // { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kelurahan/penanganan', icon: Activity },
                 { id: 'recap', name: 'Laporan & Statistik', url: '/dashboard/kelurahan/laporan', icon: BarChart3 },
                 { id: 'profile', name: 'Profil Operator', url: '/dashboard/kelurahan/profil', icon: User },
             ];
