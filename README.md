@@ -7,6 +7,58 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Setup Lokal
+
+### 1. Install Dependencies
+
+```bash
+composer install
+npm install
+```
+
+### 2. Konfigurasi Environment
+
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+Edit `.env` dan sesuaikan konfigurasi database (`DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
+
+### 3. Migrasi & Seeder Database
+
+```bash
+php artisan migrate
+php artisan db:seed
+```
+
+### 4. ⚠️ Wajib: Buat Symlink Storage Publik
+
+> **PENTING:** Langkah ini **wajib dijalankan** sebelum melakukan testing upload foto laporan bencana.
+> Tanpa symlink ini, URL foto yang dikembalikan API (`/storage/reports/...`) akan menghasilkan **404 Not Found**
+> meski file fisiknya sudah tersimpan di server.
+
+```bash
+php artisan storage:link
+```
+
+Perintah ini membuat symlink `public/storage` → `storage/app/public` sehingga file yang
+diupload dapat diakses secara publik via URL browser.
+
+### 5. Jalankan Server Development
+
+```bash
+# Terminal 1: Laravel API Backend
+php artisan serve
+
+# Terminal 2: React Admin Dashboard (Vite)
+npm run dev
+```
+
+---
+
+
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

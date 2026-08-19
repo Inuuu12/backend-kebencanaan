@@ -45,21 +45,18 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = 'sigab_token_' . Str::random(60);
-        
-        $user->remember_token = $token;
-        $user->save();
+        $token = $user->createToken('mobile_app')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Login berhasil.',
             'data' => [
-                'id' => (string) $user->id_user,
-                'name' => $user->nama,
+                'id'    => (string) $user->id_user,
+                'name'  => $user->nama,
                 'email' => $user->email,
-                'nik' => '',
+                'nik'   => '',
                 'phone' => $user->no_telp ?? '',
-                'role' => $user->role ?? 'admin',
+                'role'  => $user->role ?? 'USER',
                 'token' => $token,
             ]
         ]);
@@ -94,18 +91,18 @@ class AuthController extends Controller
             'is_active' => true,
         ]);
 
-        $token = method_exists($user, 'createToken') 
-            ? $user->createToken('auth_token')->plainTextToken 
-            : 'sigab_token_' . Str::random(60);
+        // Gunakan createToken() Sanctum agar token tersimpan di personal_access_tokens
+        // dan dapat divalidasi oleh middleware auth:sanctum
+        $token = $user->createToken('mobile_app')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Registrasi berhasil.',
             'data' => [
-                'id' => (string) $user->id_user,
-                'name' => $user->nama,
+                'id'    => (string) $user->id_user,
+                'name'  => $user->nama,
                 'email' => $user->email,
-                'nik' => $request->nik ?? '',
+                'nik'   => $request->nik ?? '',
                 'phone' => $user->no_telp,
                 'token' => $token,
             ]
@@ -145,34 +142,22 @@ class AuthController extends Controller
 
     /**
      * Get authenticated user profile
+     *
+     * Route diproteksi auth:sanctum — $request->user() dijamin tidak null.
+     * Tidak perlu cek manual token / remember_token.
      */
     public function me(Request $request)
     {
-        $token = $request->bearerToken();
-        if (!$token) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated (No token)'
-            ], 401);
-        }
-
-        $user = User::where('remember_token', $token)->first();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated (Invalid token)'
-            ], 401);
-        }
+        $user = $request->user();
 
         return response()->json([
             'success' => true,
             'data' => [
-                'id' => (string) $user->id_user,
-                'name' => $user->nama,
+                'id'    => (string) $user->id_user,
+                'name'  => $user->nama,
                 'email' => $user->email,
                 'phone' => $user->no_telp ?? '',
-                'role' => $user->role,
+                'role'  => $user->role,
             ]
         ]);
     }
