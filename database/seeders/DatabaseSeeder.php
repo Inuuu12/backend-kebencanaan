@@ -51,6 +51,7 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call([
+            BogorAdministrativeAreaSeeder::class,
             DisasterDataSeeder::class,
             RegionalAndSupportSeeder::class,
         ]);

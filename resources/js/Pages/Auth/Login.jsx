@@ -33,24 +33,26 @@ export default function Login() {
     };
 
     return (
-        <div className="login-wrapper relative overflow-hidden bg-slate-50 dark:bg-slate-900">
-            {/* Background Decorations to match Beranda Orange Theme */}
+        <div className="login-wrapper relative overflow-hidden bg-black">
+            {/* Background Decorations (Diubah menjadi hitam sementara) */}
             <div className="absolute inset-0 z-0">
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-[#FF750F] rounded-full mix-blend-multiply filter blur-[150px] opacity-40 animate-blob"></div>
-                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-orange-400 rounded-full mix-blend-multiply filter blur-[150px] opacity-40 animate-blob animation-delay-2000"></div>
+                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-black rounded-full mix-blend-multiply filter blur-[150px] opacity-40 animate-blob"></div>
+                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-black rounded-full mix-blend-multiply filter blur-[150px] opacity-40 animate-blob animation-delay-2000"></div>
             </div>
             
             <div className="login-card relative z-10 border-orange-500/20 shadow-[0_0_50px_-12px_rgba(255,117,15,0.25)]">
                 <title>Masuk ke Sistem - SIKAB</title>
             
-                <div className="login-header">
-                    <div className="login-logo flex justify-center mb-3">
+                <div className="login-header flex items-center gap-4 mb-6 text-left">
+                    <div className="login-logo shrink-0">
                         <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
                             <FlameKindling size={26} />
                         </div>
                     </div>
-                    <h2 className="login-title font-extrabold text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">SIKAB BOGOR</h2>
-                    <p className="login-subtitle">Sistem Informasi Kebencanaan Kabupaten Bogor</p>
+                    <div>
+                        <h2 className="login-title font-extrabold text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 m-0">SIKAB BOGOR</h2>
+                        <p className="login-subtitle text-sm text-slate-500 mt-1 leading-tight mb-0">Sistem Informasi Kebencanaan Kabupaten Bogor</p>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -111,12 +113,12 @@ export default function Login() {
 
                     <button
                         type="submit"
-                        className="btn-primary"
-                        style={{ width: '100%', padding: '0.85rem' }}
+                        className="w-full bg-black text-white hover:bg-slate-800 transition-colors rounded-lg flex justify-center items-center gap-2 font-medium"
+                        style={{ padding: '0.85rem' }}
                         disabled={processing}
                     >
                         <Shield size={18} />
-                        <span>{processing ? 'Memproses...' : 'Masuk Dashboard'}</span>
+                        <span>{processing ? 'Memproses...' : 'Login'}</span>
                     </button>
                 </form>
             </div>
