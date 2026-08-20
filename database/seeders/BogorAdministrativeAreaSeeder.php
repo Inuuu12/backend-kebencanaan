@@ -11,7 +11,7 @@ class BogorAdministrativeAreaSeeder extends Seeder
 {
     public function run(): void
     {
-        $zipPath = base_path('rencana/sumber/json admin wil.zip');
+        $zipPath = base_path('database/data/json admin wil.zip');
 
         if (!file_exists($zipPath)) {
             $this->command?->error("File sumber wilayah tidak ditemukan: {$zipPath}");
