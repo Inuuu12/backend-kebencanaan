@@ -89,7 +89,7 @@ export default function AppRoutes() {
                                 <Route path="/peta" element={<DisasterMap />} />
                                 <Route path="/penanganan" element={<KabupatenPenanganan />} />
                                 <Route path="/berita" element={<KabupatenBerita />} />
-                                <Route path="/profil" element={<KabupatenProfile />} />
+                                {/* <Route path="/profil" element={<KabupatenProfile />} /> */}
                             </Routes>
                         </PrivateRoute>
                     } />
@@ -105,7 +105,7 @@ export default function AppRoutes() {
                                 <Route path="/penanganan" element={<KecamatanPenanganan />} />
                                 <Route path="/rekap" element={<KecamatanRecap />} />
                                 <Route path="/statistik" element={<KecamatanStatistics />} />
-                                <Route path="/profil" element={<KecamatanProfile />} />
+                                {/* <Route path="/profil" element={<KecamatanProfile />} /> */}
                             </Routes>
                         </PrivateRoute>
                     } />
@@ -120,7 +120,7 @@ export default function AppRoutes() {
                                 <Route path="/peta" element={<DisasterMap />} />
                                 <Route path="/penanganan" element={<KelurahanPenanganan />} />
                                 <Route path="/laporan" element={<KelurahanLaporan />} />
-                                <Route path="/profil" element={<KelurahanProfile />} />
+                                {/* <Route path="/profil" element={<KelurahanProfile />} /> */}
                             </Routes>
                         </PrivateRoute>
                     } />

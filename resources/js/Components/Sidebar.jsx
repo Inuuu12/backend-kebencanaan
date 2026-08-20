@@ -41,7 +41,7 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
                 { id: 'pengguna', name: 'Kelola Pengguna', url: '/dashboard/kabupaten/pengguna', icon: Users },
                 { id: 'map', name: 'Peta Wilayah', url: '/dashboard/kabupaten/peta', icon: MapIcon },
                 // { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kabupaten/penanganan', icon: Activity },
-                { id: 'profile', name: 'Profil Operator', url: '/dashboard/kabupaten/profil', icon: User },
+                // { id: 'profile', name: 'Profil Operator', url: '/dashboard/kabupaten/profil', icon: User },
             ];
         } else if (user.role === 'admin_kecamatan') {
             return [
@@ -51,7 +51,7 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
                 // { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kecamatan/penanganan', icon: Activity },
                 { id: 'recap', name: 'Rekap Kelurahan', url: '/dashboard/kecamatan/rekap', icon: FileSpreadsheet },
                 { id: 'statistics', name: 'Statistik Bencana', url: '/dashboard/kecamatan/statistik', icon: BarChart3 },
-                { id: 'profile', name: 'Profil Operator', url: '/dashboard/kecamatan/profil', icon: User },
+                // { id: 'profile', name: 'Profil Operator', url: '/dashboard/kecamatan/profil', icon: User },
             ];
         } else {
             return [
@@ -60,7 +60,7 @@ export default function Sidebar({ activePage, isOpen, setIsOpen }) {
                 { id: 'map', name: 'Peta Desa', url: '/dashboard/kelurahan/peta', icon: MapIcon },
                 // { id: 'penanganan', name: 'Penanganan Bencana', url: '/dashboard/kelurahan/penanganan', icon: Activity },
                 { id: 'recap', name: 'Laporan & Statistik', url: '/dashboard/kelurahan/laporan', icon: BarChart3 },
-                { id: 'profile', name: 'Profil Operator', url: '/dashboard/kelurahan/profil', icon: User },
+                // { id: 'profile', name: 'Profil Operator', url: '/dashboard/kelurahan/profil', icon: User },
             ];
         }
     };
