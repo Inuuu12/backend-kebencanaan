@@ -6,14 +6,16 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    
     public function up(): void
     {
         Schema::create('torens', function (Blueprint $table) {
             $table->id();
-            $table->timestamps();
+            $table->string('nama-daerah');
+            $table->string('lokasi')->nullable();
+            $table->integer('kapasitas_maksimal');
+            $table->float('volume_air');
+            $table->timestamps();   
         });
     }
 
